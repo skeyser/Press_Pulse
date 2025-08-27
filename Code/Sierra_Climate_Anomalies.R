@@ -31,8 +31,6 @@ library(here)
 
 ## -------------------------------------------------------------
 
-## I'm testing something
-
 ## Load in the anomalies data
 anom <- readr::read_csv("C:/Users/srk252/Documents/GIS_Data/Sierra_Climate_Anomalies/Temperature_Anomalies_by_ARU.csv")
 glimpse(anom)
