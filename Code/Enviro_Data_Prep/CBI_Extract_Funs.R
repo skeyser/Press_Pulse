@@ -28,6 +28,8 @@ options(scipen = 6, digits = 4)
 library(dplyr)
 library(ggplot2)
 library(here)
+library(exactextractr)
+library(landscapemetrics)
 
 ## -------------------------------------------------------------
 
@@ -52,7 +54,8 @@ cabio_loc_query <- function(years = survey_years){
   DBI::dbListTables(conn = conn)
   
   ## Retrieve the study area
-  roi <- CAbioacoustics::cb_get_spatial(layer_name = "sierra_study_area")
+  ## Breaking function...removing until I hear back from Jay
+  #roi <- CAbioacoustics::cb_get_spatial(layer_name = "sierra_study_area")
   
   ## Grab the ARU location from the CAbioacoustics package
   ## Pull the spatial coordinates
