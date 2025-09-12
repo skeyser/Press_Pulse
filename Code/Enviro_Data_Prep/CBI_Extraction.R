@@ -53,6 +53,9 @@ source(here("./Code/Enviro_Data_Prep/CBI_Extract_Funs.R"))
 ## fire_interval, most_recent_fire, fire_frequency, number of fires,
 ## and landscape metrics
 ##
+## To-Do
+## Move the main function to separate script so this script
+## only involve running
 ## *************************************************************
 
 aru_fire_prep <- function(fire_prod = NULL, # character vector of desired fire output
@@ -72,8 +75,10 @@ aru_fire_prep <- function(fire_prod = NULL, # character vector of desired fire o
                           spat_ex, # chr for type (point, buff, hex)
                           buff_size = 120, # vector of buffer sizes
                           intervals = c("1-5", "6-10", "11-35"),
-                          landscape_metrics = T
+                          landscape_metrics = T,
+                          allow_raster_time_gaps = FALSE
 ){
+  
   
   ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   ##
@@ -81,29 +86,12 @@ aru_fire_prep <- function(fire_prod = NULL, # character vector of desired fire o
   ##
   ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   
-  if(locs_from_cabio){
-    aru_locs <- cabio_loc_query(years = survey_years)
-  } else if (!is.null(custom_locs)) {
-    aru_locs <- custom_locs
-  } else {
-    stop("No locations provided. Either set locs_from_cabio = TRUE or provide locations for custom_locs.")
-  }
-  
-  ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-  ##
-  ## Subsection: Create SF objects from the ARU coordinates
-  ##
-  ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-  
-  ## Create SF objects from points
-  if(!any(class(aru_locs) %in% "sf")){
-    
-    aru_locs <- st_as_sf(aru_locs, 
-                         coords = c(x_col, 
-                                    y_col), 
-                         crs = .crs)
-  }
-  
+  aru_locs <- prep_locs(locs_from_cabio = locs_from_cabio,
+                        custom_locs = custom_locs,
+                        survey_years = survey_years,
+                        x_col = x_col,
+                        y_col = y_col,
+                        .crs = .crs)
   
   ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   ##
@@ -111,62 +99,34 @@ aru_fire_prep <- function(fire_prod = NULL, # character vector of desired fire o
   ##
   ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   
-  ## Find the data for extraction
-  #if(env_prod == "Fire_CBI"){
+  cbi_stack <- cbi_clean(cbi_path = "C:/Users/srk252/Documents/GIS_Data/CBI_Sierra/CBI_1985_2024_ZeroFilling_Stack.tif")
   
-  ## Function bundle
+  ## Project the points
+  aru_locs <- st_transform(aru_locs,
+                           crs = crs(cbi_stack))
   
-  if(file.exists("C:/Users/srk252/Documents/GIS_Data/CBI_Sierra/CBI_1985_2024_ZeroFilling_Stack.tif")){
-    
-    message("CBI rasters are fixed and exist in directory. Loading the fixed stack.")
-    cbi_stack <- rast("C:/Users/srk252/Documents/GIS_Data/CBI_Sierra/CBI_1985_2024_ZeroFilling_Stack.tif")
-  
-    } else {
-    
-    ## Find files
-    cbi_path <- "C:/Users/srk252/Documents/data_for_spencer/cbi_sierra_cat_rasters/"
-    cbi_files <- list.files(cbi_path, full.names = T, pattern = "(cbi_cat_)(\\d{4})(*.tif$)")
-    
-    ## Call function to stack if need be
-    cbi_stack <- cbi_stack_fun(cbi_files)
-    
-    ## Add in zeros for the raster for downstream processing
-    temp <- rast(nrows = nrow(cbi_stack[[1]]),
-                 ncols = ncol(cbi_stack[[1]]),
-                 xmin = xmin(cbi_stack[[1]]),
-                 xmax = xmax(cbi_stack[[1]]),
-                 ymin = ymin(cbi_stack[[1]]),
-                 ymax = ymax(cbi_stack[[1]]),
-                 crs = crs(cbi_stack[[1]]),
-                 resolution = res(cbi_stack[[1]]),
-                 vals = 0,
-                 names = "template"
-    )
-    
-    ## Reclassify the NAs to zero to fill in the rasters
-    cbi_stack <- classify(cbi_stack, cbind(NA, 0))
-    if(nlyr(cbi_stack) == length(cbi_files)){
-      names(cbi_stack) <- str_extract(cbi_files, "\\d{4}")
-    }
-  }
+  ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  ##
+  ## Subsection: Intial input validation
+  ##
+  ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  validate_inputs(fire_prod = fire_prod, 
+                  locs_from_cabio = locs_from_cabio, 
+                  custom_locs = custom_locs, 
+                  survey_years = survey_years,
+                  ras_stack = cbi_stack,
+                  intervals = intervals,
+                  allow_gaps = allow_raster_time_gaps)
   
   ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   ##
   ## Subsection: Fire year interval stacking
   ##
   ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-  if(!is.null(intervals)){
-  cbi_int <- int_ras_fun(ras_stack = cbi_stack,
-                         intervals = intervals,
-                         sum_int = "max",
-                         locations = aru_locs)
-  } else {
-    message("No intervals specified. Skipping interval binning.")
-  }
   
-  ## Project the points
-  aru_locs <- st_transform(aru_locs,
-                           crs = crs(cbi_stack))
+  cbi_int <- process_intervals(cbi_stack = cbi_stack,
+                               intervals = intervals,
+                               locations = aru_locs)
   
   ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   ##
@@ -180,95 +140,54 @@ aru_fire_prep <- function(fire_prod = NULL, # character vector of desired fire o
   ## do this in a small loop within this function but the interval 
   ## function returns the actual years which makes a merge more difficult.
   ##
+  ## Still a WIP...but the yearly extractions are fine
+  ## Added in a identifier for the survey year for book keeping
+  ## To-Do
+  ## 1. Edit functionality for the single point extraction
+  ## 2. Move to separate function
+  ## 3. Modify the full script for better handling of fire products
   ## *************************************************************
   if("fire_severity" %in% fire_prod){
-    if(!is.null(intervals)){
-      message("Intervals set. Fire severity calculated from summarized fire years.")
-      cbi_sev <- cbi_int
-    } else {cbi_sev <- cbi_stack}
-    if(!is.null(buff_size)){
-      aru_buffer <- st_buffer(aru_locs,
-                              dist = buff_size)
-      
-      ## Check the number of unique years
-      if(length(unique(aru_locs$survey_year)) == length(cbi_sev)){
-        print("Matching fire intervals to the unique years in the data. Proceed.")
-      } else { stop("Mismatching number of years for extraction.") }
-      
-      ## If the years are more than 1
-      if(length(unique(aru_locs$survey_year)) > 1){
-        fire_sev <- vector(mode = "list", length = length(unique(aru_locs$survey_year)))
-        yrs_tmp <- unique(aru_locs$survey_year)
-        
-        for(i in 1:length(unique(aru_buffer$survey_year))){
-          fire_sev[[i]] <- exactextractr::exact_extract(cbi_sev[[i]],
-                                                        aru_buffer |> filter(survey_year == yrs_tmp[i]),
-                                                        fun = c("mean", "stdev"),
-                                                        append_cols = id_col)
-        }
-      }
-    } else {
-      
-      fire_sev <- terra::extract(cbi_sev,
-                                 aru_locs,
-                                 bind = T) |> st_as_sf()
-      
-    }
-    colnames(fire_sev)[colnames(fire_sev) != id_col] <- paste0("Fire_Sev_", gsub("[[:punct:]]", "_", colnames(fire_sev)[colnames(fire_sev) != id_col]))
-    
+    message("fire_severity specified...extracting fire severity data.")
+    fire_sev <- extract_fire_sev(cbi_sev = cbi_int, aru_locs = aru_locs,
+                               buff_size = buff_size, id_col = id_col)
   } else {
     fire_sev <- NULL
   }
   
-  
-  
   ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   ##
-  ## Subsection: Calculate fire variables
+  ## Subsection: Calculate fire variables if specified
   ##
   ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-  ras_years <- as.numeric(names(cbi_stack))
+  custom_fire_mets <- create_fire_metrics(cbi_stack = cbi_stack, fire_prod = fire_prod, intervals = intervals)
   
-  if("time_since_fire" %in% fire_prod){
-    if(!is.null(intervals)){
-      message("Intervals are set. Time since fire doesn't accept intervals...output will be generated from single years.")
-    }
-    
-    ## Time to most recent fire
-    time_since_fire <- terra::app(cbi_stack, 
-                                  fun = function(x) time_to_most_recent_fire(cell_values = x,
-                                                                             years = ras_years))
+  ## Function needs to be returned but will move when code below is fixed.
+  if(length(custom_fire_mets) == 0){
+    fire_buff_merge <- NULL
   }
   
-  if("fire_freq" %in% fire_prod){
-    if(!is.null(intervals)){
-      message("Intervals are set. Fire frequency doesn't accept intervals...output will be generated from single years.")
-    } 
-    ## Fire frequency (num fires/total record length)
-    fire_freq <- terra::app(cbi_stack, 
-                            fun = function(x) fire_freq_calc(cell_values = x,
-                                                             years = ras_years))
-  }
-  
-  if("fire_ret_int" %in% fire_prod){
-    if(!is.null(intervals)){
-      message("Intervals are set. Fire return interval doesn't accept intervals.,,output will be generated from single years.")
-    } 
-    ## Fire return interval (mean of time between successive fires)
-    fire_return_int <- terra::app(cbi_stack, 
-                                  fun = function(x) fire_return_int(cell_values = x, 
-                                                                    years = ras_years))
-  }
-  
-  ## Report the status of s2 geometry for convenience
-  if(!is.null(buff_size)){
-    if(sf_use_s2() == T){
-      message("s2 geometry enabled. Buff_size interpreted as meters.")
-    } else {
-      message("s2 disabled, if locations are geodetic (lat/lon) units interpretted as degrees.")
-    }
-  }
-  
+  ## *************************************************************
+  ##
+  ## Section Notes: WIP
+  ## To-Do
+  ## 1. Need to build a better function for toggling buffer vs non-buffer
+  ## 2. Need a multi-year shift for ARU surveys collected at different years
+  ## 3. Multi-buffer size extraction give the slow estimation speed
+  ## 4. Optional region clips? Maybe the user can add this before with the CBI
+  ## stack itself?
+  ##
+  ## *************************************************************
+  # ## Report the status of s2 geometry for convenience
+  # if(!is.null(buff_size)){
+  #   if(sf_use_s2() == T){
+  #     message("s2 geometry enabled. Buff_size interpreted as meters.")
+  #   } else {
+  #     message("s2 disabled, if locations are geodetic (lat/lon) units interpretted as degrees.")
+  #   }
+  # }
+  # 
+  #
   
   ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   ##
@@ -276,80 +195,80 @@ aru_fire_prep <- function(fire_prod = NULL, # character vector of desired fire o
   ##
   ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   
-  if(any(fire_prod %in% c("time_since_fire", "fire_freq", "fire_ret_int"))){
-    variable_name <- fire_prod[!fire_prod == "fire_severity"]
-    fire_buff_out <- vector(mode = "list", length = length(variable_name))
-    
-    for(var in 1:length(variable_name)){
-      
-      var.tmp <- variable_name[var]
-      
-      if(var.tmp == "time_since_fire"){
-        fire_buff_extract <-
-          buff_size %>%
-          # create column names
-          str_c(var.tmp, ., sep = '_') |>
-          set_names() |>
-          map_dfr(
-            \(x)
-            exactextractr::exact_extract(
-              time_since_fire,
-              # buffer points
-              aru_locs |> st_buffer(as.numeric(str_extract(x, "\\d"))),
-              fun = 'mean'
-            )
-          ) |> 
-          bind_cols(st_drop_geometry(aru_locs[,id_col]))
-        
-        fire_buff_out[[var]] <- fire_buff_extract
-        
-      }
-      
-      if(var.tmp == "fire_freq"){
-        fire_buff_extract <-
-          buff_size %>%
-          # create column names
-          str_c(var.tmp, ., sep = '_') |>
-          set_names() |>
-          map_dfr(
-            \(x)
-            exactextractr::exact_extract(
-              fire_freq,
-              # buffer points
-              aru_locs |> st_buffer(as.numeric(str_extract(x, "\\d"))),
-              fun = 'mean'
-            )
-          ) |> 
-          bind_cols(st_drop_geometry(aru_locs[,id_col]))
-        
-        fire_buff_out[[var]] <- fire_buff_extract
-      }
-      
-      if(var.tmp == "fire_ret_int"){
-        fire_buff_extract <-
-          buff_size %>%
-          # create column names
-          str_c(var.tmp, ., sep = '_') |>
-          set_names() |>
-          map_dfr(
-            \(x)
-            exactextractr::exact_extract(
-              fire_return_int,
-              # buffer points
-              aru_locs |> st_buffer(as.numeric(str_extract(x, "\\d"))),
-              fun = 'mean'
-            )
-          ) |> 
-          bind_cols(st_drop_geometry(aru_locs[,id_col]))
-        
-        fire_buff_out[[var]] <- fire_buff_extract
-      }
-      
-    }
-    fire_buff_merge <- Reduce(function(x, y) merge(x, y, by = id_col), fire_buff_out) 
-  } else {
-    fire_buff_merge <- NULL
-  }
+  # if(any(fire_prod %in% c("time_since_fire", "fire_freq", "fire_ret_int"))){
+  #   variable_name <- fire_prod[!fire_prod == "fire_severity"]
+  #   fire_buff_out <- vector(mode = "list", length = length(variable_name))
+  #   
+  #   for(var in 1:length(variable_name)){
+  #     
+  #     var.tmp <- variable_name[var]
+  #     
+  #     if(var.tmp == "time_since_fire"){
+  #       fire_buff_extract <-
+  #         buff_size %>%
+  #         # create column names
+  #         str_c(var.tmp, ., sep = '_') |>
+  #         set_names() |>
+  #         map_dfr(
+  #           \(x)
+  #           exactextractr::exact_extract(
+  #             time_since_fire,
+  #             # buffer points
+  #             aru_locs |> st_buffer(as.numeric(str_extract(x, "\\d"))),
+  #             fun = 'mean'
+  #           )
+  #         ) |> 
+  #         bind_cols(st_drop_geometry(aru_locs[,id_col]))
+  #       
+  #       fire_buff_out[[var]] <- fire_buff_extract
+  #       
+  #     }
+  #     
+  #     if(var.tmp == "fire_freq"){
+  #       fire_buff_extract <-
+  #         buff_size %>%
+  #         # create column names
+  #         str_c(var.tmp, ., sep = '_') |>
+  #         set_names() |>
+  #         map_dfr(
+  #           \(x)
+  #           exactextractr::exact_extract(
+  #             fire_freq,
+  #             # buffer points
+  #             aru_locs |> st_buffer(as.numeric(str_extract(x, "\\d"))),
+  #             fun = 'mean'
+  #           )
+  #         ) |> 
+  #         bind_cols(st_drop_geometry(aru_locs[,id_col]))
+  #       
+  #       fire_buff_out[[var]] <- fire_buff_extract
+  #     }
+  #     
+  #     if(var.tmp == "fire_ret_int"){
+  #       fire_buff_extract <-
+  #         buff_size %>%
+  #         # create column names
+  #         str_c(var.tmp, ., sep = '_') |>
+  #         set_names() |>
+  #         map_dfr(
+  #           \(x)
+  #           exactextractr::exact_extract(
+  #             fire_return_int,
+  #             # buffer points
+  #             aru_locs |> st_buffer(as.numeric(str_extract(x, "\\d"))),
+  #             fun = 'mean'
+  #           )
+  #         ) |> 
+  #         bind_cols(st_drop_geometry(aru_locs[,id_col]))
+  #       
+  #       fire_buff_out[[var]] <- fire_buff_extract
+  #     }
+  #     
+  #   }
+  #   fire_buff_merge <- Reduce(function(x, y) merge(x, y, by = id_col), fire_buff_out) 
+  # } else {
+  #   fire_buff_merge <- NULL
+  # }
   
   ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   ##
@@ -362,6 +281,7 @@ aru_fire_prep <- function(fire_prod = NULL, # character vector of desired fire o
     fire_lscp_out <- fire_lscp_fun(ras_int = cbi_int,
                                    ras_stack = cbi_stack,
                                    locs = aru_locs,
+                                   years = survey_years,
                                    buff_size = buff_size,
                                    id_col = id_col,
                                    metrics = c("lsm_c_pland"))
@@ -380,11 +300,11 @@ buffSize <- 120
 
 fire_sev21 <- aru_fire_prep(fire_prod = c("fire_severity"),
                             locs_from_cabio = TRUE,
-                            survey_years = c(2021, 2022, 2023, 2024),
+                            survey_years = 2021:2024,
                             intervals = c("1-5", "6-10"), #only interested in recent fire
                             id_col = "deployment_name",
                             buff_size = buffSize,
-                            landscape_metrics = T
+                            landscape_metrics = FALSE
 )
 
 fire_sev21 <- fire_sev21$FireSeverity
