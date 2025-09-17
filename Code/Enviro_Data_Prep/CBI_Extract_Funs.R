@@ -132,7 +132,7 @@ validate_inputs <- function(fire_prod, locs_from_cabio, custom_locs, survey_year
       }
       
       ## Check if survey years exceed data range
-      if(any(survey_years > max_year)) {
+      if(any(survey_years > max_year + 1)) {
         stop(sprintf(
           "Survey years exceed available fire data range: %d-%d",
           min_year, max_year
@@ -630,6 +630,7 @@ fire_lscp_fun <- function(ras_int,
                           ras_stack, 
                           locs,
                           years,
+                          intervals,
                           buff_size,
                           id_col,
                           metrics = c("lsm_c_pland")){
