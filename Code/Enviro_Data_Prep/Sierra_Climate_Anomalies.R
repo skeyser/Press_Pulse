@@ -84,7 +84,7 @@ anom.r <- lapply(anom.path, rast)
 anom.r <- rast(anom.r)
 
 ## Give informative names
-names(anom.r) <- anom.r@pntr@.xData$get_sourcenames()
+names(anom.r) <- stringr::str_extract(sources(anom.r), pattern = "Tmax_Anomaly_\\d{4}")
 
 ## Load in the ARU locations
 locs <- st_read(here("Data/Spatial_Data/ARU_Locs_2021_2024.shp"))
@@ -103,6 +103,10 @@ locs <- cbind(locs, anom.ex)
 locs_long <- locs |> 
   tidyr::pivot_longer(cols = contains("Tmax_Anomaly"), names_to = "Year", values_to = "Anomaly") |> 
   mutate(Year = as.numeric(stringr::str_extract(Year, "\\d+")))
+
+## Write to csv
+locs_long <- locs_long |> st_drop_geometry()
+data.table::fwrite(locs_long, file = here("Data/Tmax_Anomaly_ARU_21_24.csv"))
 
 ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 ##
