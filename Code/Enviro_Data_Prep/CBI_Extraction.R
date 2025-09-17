@@ -282,6 +282,7 @@ aru_fire_prep <- function(fire_prod = NULL, # character vector of desired fire o
                                    ras_stack = cbi_stack,
                                    locs = aru_locs,
                                    years = survey_years,
+                                   intervals = intervals,
                                    buff_size = buff_size,
                                    id_col = id_col,
                                    metrics = c("lsm_c_pland"))
@@ -304,10 +305,14 @@ fire_sev21 <- aru_fire_prep(fire_prod = c("fire_severity"),
                             intervals = c("1-5", "6-10"), #only interested in recent fire
                             id_col = "deployment_name",
                             buff_size = buffSize,
-                            landscape_metrics = FALSE
+                            landscape_metrics = TRUE
 )
 
+str(fire_sev21)
 fire_sev21 <- fire_sev21$FireSeverity
+
+## Write the robject
+saveRDS(fire_sev21, file = here("./Data/Fire_ARU_21_24.RDS"))
 
 
 ## Histogram for the fire severity
