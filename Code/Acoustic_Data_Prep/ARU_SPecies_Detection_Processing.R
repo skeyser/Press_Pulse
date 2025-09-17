@@ -65,26 +65,6 @@ library(mapview)
 ##
 ## *************************************************************
 
-## Read thresholds in
-thresh <- readr::read_csv(here("Data/Thresholds_2021_20230309.csv"))
-glimpse(thresh)
-
-## DF Dimensions
-dim(thresh)
-
-## How many species
-length(unique(thresh$species))
-print(thresh$species)
-
-## Names of the columns
-colnames(thresh)
-
-## Breakdown for "keep"
-table(thresh$keep)
-
-## Overall summarization
-summary(thresh)
-
 ## -------------------------------------------------------------
 ##
 ## Begin Section: Processing species detections
@@ -95,10 +75,15 @@ summary(thresh)
 ## Section Notes: Source ac_det_filter() from Sierra_functions.R
 ## 
 ## To-do:
-## 1. Streamline the multi-year species data processing
-## 2. Unify with spatial coordinates from CAbioacoustics
-## 3. Write yearly files for community data (summarized; naive biodiv. models)
-## 4. Write yearly files for community data (date-detection; occ models)
+## 1. Streamline the multi-year species data processing DONE
+## 2. Unify with spatial coordinates from CAbioacoustics DONE
+## 3. Write yearly files for community data (summarized; naive biodiv. models) WIP
+## 4. Write yearly files for community data (date-detection; occ models) DONE
+## 5. Add flexibility for the setting wd WIP
+##    a. Make sure relative and complete paths work
+##    b. Allow user to provide both quotes and non-quotes to path
+## 6. Add flexibility to the date string so that users can provide one date for all years
+## 7. Add flexibility to the species function so the user can select a priori species to remove
 ##
 ## *************************************************************
 
@@ -107,16 +92,15 @@ summary(thresh)
 source(here("./Code/Acoustic_Data_Prep/Sierra_functions.R"))
 
 ## threshold file
-thresh <- readr::read_csv("./Data/Thresholds_2021_20230309.csv")
 thresh <- readr::read_csv("./Data/Thresholds_2021_20230309_BestThreshold_975min.csv")
 
 ## Run the function
-aru_det_file_gen(det_dir = "C:/Users/srk252/Documents/Rprojs/Sierra_Biodiv/Data/Detections_By_Species/",
-                 det_years = c("2021"),
+aru_det_file_gen(det_dir = "C:/Users/srk252/Documents/Rprojs/Press_Pulse/Data/Detections_By_Species/",
+                 det_years = c("2021", "2022", "2023", "2024"),
                  seas_format = F,
-                 seas_outdir = "C:/Users/srk252/Documents/Rprojs/Sierra_Biodiv/Data/Generated_DFs/Seasonal_Summaries/",
+                 seas_outdir = "C:/Users/srk252/Documents/Rprojs/Press_Pulse/Data/Seasonal_Summaries/",
                  occ_format = T,
-                 occ_outdir = "C:/Users/srk252/Documents/Rprojs/Sierra_Biodiv/Data/Generated_DFs/Occ_Mod_Data/Thresh_By_Species/",
+                 occ_outdir = "C:/Users/srk252/Documents/Rprojs/Press_Pulse/Data/Occ_Data/Thresh_By_Species/",
                  eff_file = T,
                  coord_link = T,
                  d_thresh = thresh,
@@ -128,7 +112,10 @@ aru_det_file_gen(det_dir = "C:/Users/srk252/Documents/Rprojs/Sierra_Biodiv/Data/
                  time_format = "ymd",
                  no_dets = 2,
                  binary = T,
-                 date_range = c("2021-06-01", "2021-06-30"),
+                 date_range = c("2021-06-01", "2021-06-30",
+                                "2022-06-01", "2022-06-30",
+                                "2023-06-01", "2023-06-30",
+                                "2024-06-01", "2024-06-30"),
                  eff_site_name = "Cell_U",
                  eff_filter = 10,
                  verbose = F)
