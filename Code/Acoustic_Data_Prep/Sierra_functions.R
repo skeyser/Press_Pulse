@@ -223,7 +223,11 @@ ac_det_filter <- function(d,
   min.val <- suppressWarnings(min(apply(as.matrix(d[,date.cols]), 1, function(x) {min(x[x>0], na.rm = T)})))
   
   ## Replace the "." notation with a "0"
-  d[d == "."] <- "0"
+  #d[d == "." | is.na(d)] <- "0"
+  ## Replace missing values with 0
+  d <- d |> 
+    mutate(across(where(is.numeric), ~replace(., is.na(.), 0)),
+           across(where(Negate(is.numeric)), ~replace(., . == "." | is.na(.), "0")))
   
   ## Date range restriction
   if (!is.null(date_range)) {
@@ -352,7 +356,15 @@ ac_det_filter <- function(d,
       filter(effort_days >= eff_filter)
     
     ## Filter the detection data by effort sites
+    ############################################
+    ## Patching the mismatch in names for now ##
+    ############################################
+    ############################################
+    ##########    WIP     ######################
+    ############################################
+    
     d.thresh <- d.thresh |> 
+      mutate(Cell_Unit = stringr::str_extract(Cell_Unit, "C[0-9]+_U[0-9]+")) |> 
       filter(Cell_Unit %in% eff$Cell_Unit)
   }
   
@@ -394,7 +406,12 @@ ac_det_filter <- function(d,
     eff <- eff |> filter(effort_days >= eff_filter)
     
     ## Filter the ARU detections by this
+    ## Patching
+    ####################################
+    ##############WIP###################
+    ####################################
     d.thresh <- d.thresh |> 
+      mutate(Cell_Unit = stringr::str_extract(Cell_Unit, "C[0-9]+_U[0-9]+")) |> 
       filter(Cell_Unit %in% eff$Cell_Unit)
     
     ## Conditionally changing 0 to NA for unsurveyed sites
@@ -438,7 +455,7 @@ ac_det_filter <- function(d,
 ## limit the amount of files needed to be read it at once
 
 aru_det_file_gen <- function(det_dir = c("C:/Users/srk252/Documents/Rprojs/Sierra_Biodiv/Data/Detections_By_Species/"),
-                             det_years = c("2021", "2022", "2023"),
+                             det_years = c("2021", "2022", "2023", "2024"),
                              occ_format = T,
                              occ_outdir = c("C:/Users/srk252/Documents/Rprojs/Sierra_Biodiv/Data/Generated_DFs/Occ_Mod_Data/"),
                              seas_format = F,
@@ -487,6 +504,31 @@ aru_det_file_gen <- function(det_dir = c("C:/Users/srk252/Documents/Rprojs/Sierr
   }
   
   ## User prompts for directory management
+  # if(occ_format == T & !dir.exists(occ_outdir)){
+  #   message("Occupancy output generation selected, but output dir does not exist.")
+  #   
+  #   ## User choice...where to create directory...or kill the fxn
+  #   choice <- menu(c("Create an output directory at WD root.", 
+  #                    "Create an output directory at specific dir.",
+  #                    "Stop function."),
+  #                  title = "Select the following:")
+  #   if(choice == 1){
+  #     message("Dir created here: ")
+  #     print(paste0(getwd(), "/Occ_Mod_Data/", det_years))
+  #     occ_outdir <- sapply(det_years, function(x) paste(getwd(), "Occ_Mod_Data", x, sep = "/"))
+  #     dir.create(paste0(getwd(), "Occ_Mod_Data", det_years))
+  #   } else if (choice == 2){
+  #     occ_outdir <- readline(prompt = "Please enter occ_out dir: ")
+  #     dir.create(occ_outdir)
+  #   } else if(choice == 3){
+  #     stop("Function stopped.")
+  #   } else {
+  #     stop("Invalid selection. Function stopped.")
+  #   }
+  # }
+  # 
+  ## User prompts for directory management
+  ## User prompts for directory management
   if(occ_format == T & !dir.exists(occ_outdir)){
     message("Occupancy output generation selected, but output dir does not exist.")
     
@@ -497,12 +539,41 @@ aru_det_file_gen <- function(det_dir = c("C:/Users/srk252/Documents/Rprojs/Sierr
                    title = "Select the following:")
     if(choice == 1){
       message("Dir created here: ")
-      print(paste0(getwd(), "/Occ_Mod_Data/", det_years))
-      occ_outdir <- sapply(det_years, function(x) paste(getwd(), "Occ_Mod_Data", x, sep = "/"))
-      dir.create(paste0(getwd(), "Occ_Mod_Data", det_years))
+      occ_outdir <- file.path(getwd(), "Occ_Mod_Data", det_years)
+      print(occ_outdir)
+      sapply(occ_outdir, dir.create, recursive = TRUE, showWarnings = FALSE)
     } else if (choice == 2){
-      occ_outdir <- readline(prompt = "Please enter occ_out dir: ")
-      dir.create(occ_outdir)
+      message("\nIMPORTANT: Do not use quotes in your input path!")
+      message("\nYou can enter either:")
+      message("1. A full path (e.g., C:/Users/MyUser/Documents/Project/Data)")
+      message("2. A relative path (e.g., Data or Data/Output)")
+      message("\nExamples:")
+      message("   Full path: C:/Users/MyUser/Documents/Project/Data")
+      message("   Relative path: Data")
+      message("   Relative path: Data/Output/Occupancy")
+      
+      occ_outdir <- readline(prompt = "\nPlease enter directory path: ")
+      
+      # If it's not a full path, assume it's meant for here()
+      if(!grepl("^[A-Za-z]:", occ_outdir)) {  # Check if it's not a full path
+        if(!require(here)) install.packages("here")
+        library(here)
+        occ_outdir <- here(occ_outdir)
+      }
+      
+      # Clean up the path
+      occ_outdir <- normalizePath(occ_outdir, winslash = "/", mustWork = FALSE)
+      # Remove any quotes if they were added despite instructions
+      occ_outdir <- gsub('"', '', occ_outdir)
+      occ_outdir <- gsub("'", '', occ_outdir)
+      # Create directory with recursive option
+      dir.create(occ_outdir, recursive = TRUE, showWarnings = TRUE)
+      
+      if(!dir.exists(occ_outdir)) {
+        stop("Failed to create directory at: ", occ_outdir)
+      } else {
+        message("Successfully created directory at: ", occ_outdir)
+      }
     } else if(choice == 3){
       stop("Function stopped.")
     } else {
