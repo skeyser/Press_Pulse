@@ -100,7 +100,7 @@ aru_det_file_gen(det_dir = "C:/Users/srk252/Documents/Rprojs/Press_Pulse/Data/De
                  seas_format = F,
                  seas_outdir = "C:/Users/srk252/Documents/Rprojs/Press_Pulse/Data/Seasonal_Summaries/",
                  occ_format = T,
-                 occ_outdir = "C:/Users/srk252/Documents/Rprojs/Press_Pulse/Data/Occ_Data/Thresh_By_Species/",
+                 occ_outdir = "C:/Users/srk252/Documents/Rprojs/Press_Pulse/Data/Occ_Data/Thresh_By_Species_NoDetFilter/",
                  eff_file = T,
                  coord_link = T,
                  d_thresh = thresh,
@@ -117,6 +117,6 @@ aru_det_file_gen(det_dir = "C:/Users/srk252/Documents/Rprojs/Press_Pulse/Data/De
                                 "2023-06-01", "2023-06-30",
                                 "2024-06-01", "2024-06-30"),
                  eff_site_name = "Cell_U",
-                 eff_filter = 10,
+                 eff_filter = 0,
                  verbose = F)
 
