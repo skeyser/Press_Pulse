@@ -45,6 +45,19 @@ source(here("./Code/Enviro_Data_Prep/CBI_Extract_Funs.R"))
 ##
 ## -------------------------------------------------------------
 
+## Testing the validity of supplying the same arus for all 4 years
+locs <- st_read(here("Data/Spatial_Data/ARU_Locs_2021_2024.shp"))
+
+## Small shifts in ARU locations make this a weird task
+## Could estimate the shift per unit and accommodate with
+## buffering...?
+locs <- locs |> 
+  select(Cell_Unit = Cll_Unt, deployment_name = dplymn_, Long, Lat) |> 
+  distinct() |> 
+  arrange(Cell_Unit) |> 
+  tidyr::crossing(survey_year = 2021:2024)
+
+
 ## *************************************************************
 ##
 ## Section Notes:
@@ -300,19 +313,34 @@ aru_fire_prep <- function(fire_prod = NULL, # character vector of desired fire o
 buffSize <- 120
 
 fire_sev21 <- aru_fire_prep(fire_prod = c("fire_severity"),
-                            locs_from_cabio = TRUE,
-                            survey_years = 2021:2024,
-                            intervals = c("1-5", "6-10"), #only interested in recent fire
+                            locs_from_cabio = FALSE,
+                            custom_locs = locs |> filter(survey_year == 2021),
+                            survey_years = c(2021),
+                            intervals = c("1-10"), #only interested in recent fire
                             id_col = "deployment_name",
                             buff_size = buffSize,
-                            landscape_metrics = TRUE
+                            landscape_metrics = FALSE
 )
 
 str(fire_sev21)
+
+## 1-10 years prior to the sampling date for init occupancy
 fire_sev21 <- fire_sev21$FireSeverity
 
+# ## Now we need the fire data for the year proceeding each subsequent year
+# ## Testing the validity of supplying the same arus for all 4 years
+# locs.fire <- st_read(here("Data/Spatial_Data/ARU_Locs_2021_2024.shp"))
+# 
+# cbi2123 <- rast("c:/Users/srk252/Documents/GIS_Data/CBI_Sierra/CBI_1985_2024_ZeroFilling_Stack.tif") 
+# cbi2123 <- cbi2123[[names(cbi2123) %in% c(2020:2023)]]
+# 
+# locs.fire <- locs.fire |> st_transform(crs = crs(cbi2123)) |> st_buffer(dist = units::set_units(120, "m"))
+# 
+# fire_sev_annu <- exact_extract(cbi2123, locs.fire, fun = "mean")
+
+
 ## Write the robject
-saveRDS(fire_sev21, file = here("./Data/Fire_ARU_21_24.RDS"))
+saveRDS(fire_sev21, file = here("./Data/Fire_ARU_21_24_AllUnitsByYears.RDS"))
 
 
 ## Histogram for the fire severity
