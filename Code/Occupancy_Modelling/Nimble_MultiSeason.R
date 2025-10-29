@@ -24,6 +24,8 @@ options(scipen = 10, digits = 10)
 
 ## -------------------------------------------------------------
 
+renv::load()
+
 ## Package Loading
 library(dplyr)
 library(ggplot2)
@@ -1218,165 +1220,165 @@ DCMCatVert <- nimbleCode({
 ## Subsection: DCM Categorical Vertical structure
 ##
 ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-DCMCatVertNP <- nimbleCode({
-  
-  ##----------------------
-  ## Species-level priors
-  ##----------------------
-  for(k in 1:nspec){
-    ## Occupancy coefficients
-    beta0[k] ~ dnorm(0, 0.01)
-    beta1[k] ~ dnorm(0, 0.01)
-    beta2[k] ~ dnorm(0, 0.01)
-    beta3[k] ~ dnorm(0, 0.01)
-    beta4[k] ~ dnorm(0, 0.01)
-    beta5[k] ~ dnorm(0, 0.01)
-    beta6[k] ~ dnorm(0, 0.01)
-    
-    ## Detection coefficients
-    alpha0[k] ~ dnorm(0, 0.01)
-    alpha1[k] ~ dnorm(0, 0.01)
-    alpha2[k] ~ dnorm(0, 0.01)
-    alpha3[k] ~ dnorm(0, 0.01)
-    alpha4[k] ~ dnorm(0, 0.01)
-    
-    ## Persistence coefficients
-    eps0[k] ~ dnorm(0, 0.01)
-    eps1[k] ~ dnorm(0, 0.01)
-    eps2[k] ~ dnorm(0, 0.01)
-    eps3[k] ~ dnorm(0, 0.01)
-    eps4[k] ~ dnorm(0, 0.01)
-    eps5[k] ~ dnorm(0, 0.01)
-    eps6[k] ~ dnorm(0, 0.01)
-    eps7[k] ~ dnorm(0, 0.01)
-    eps8[k] ~ dnorm(0, 0.01)
-    eps9[k] ~ dnorm(0, 0.01)
-    eps10[k] ~ dnorm(0, 0.01)
-    eps11[k] ~ dnorm(0, 0.01)
-    
-    ## Colonization coefficients
-    gamma0[k] ~ dnorm(0, 0.01)
-    gamma1[k] ~ dnorm(0, 0.01)
-    gamma2[k] ~ dnorm(0, 0.01)
-    gamma3[k] ~ dnorm(0, 0.01)
-    gamma4[k] ~ dnorm(0, 0.01)
-    gamma5[k] ~ dnorm(0, 0.01)
-    gamma6[k] ~ dnorm(0, 0.01)
-    gamma7[k] ~ dnorm(0, 0.01)
-    gamma8[k] ~ dnorm(0, 0.01)
-    gamma9[k] ~ dnorm(0, 0.01)
-    gamma10[k] ~ dnorm(0, 0.01)
-    gamma11[k] ~ dnorm(0, 0.01)
-  }
-  
-  ## Cell-level raneff
-  for(c in 1:n_cells){
-    cell_det[c] ~ dnorm(0, tau.cell_det)
-  }
-  sd.cell_det ~ dunif(0, 2)
-  tau.cell_det <- pow(sd.cell_det, -2)
-  
-  ##----------------------
-  ## Ecological State Process
-  ##----------------------
-  for(k in 1:nspec){
-    for(i in 1:nsites){
-      
-      ## Initial occupancy
-      logit(psi1[i,k]) <- beta0[k] + 
-        beta1[k] * btemp[i] +
-        beta2[k] * bprec[i] +
-        beta3[k] * cc[i] +
-        beta4[k] * trendt[i] +
-        beta5[k] * trendtmin[i] +
-        beta6[k] * trendp[i]
-      
-      z[i,1,k] ~ dbern(psi1[i,k])
-      psi[i,1,k] <- psi1[i,k]
-      
-      ## State process over years
-      for(t in 2:nyears){
-        ## Colonization
-        logit(gamma[i,t-1,k]) <- gamma0[k] +
-          gamma1[k] * tanom[i, t-1] +
-          gamma2[k] * panom[i,t-1] +
-          gamma3[k] * fire[i, t-1, 1] +
-          gamma4[k] * fire[i,t-1,2] +
-          gamma5[k] * tanom[i,t-1] * fire[i,t-1,1] +
-          gamma6[k] * tanom[i,t-1] * fire[i,t-1,2] +
-          gamma7[k] * panom[i,t-1] * fire[i,t-1,1] +
-          gamma8[k] * panom[i,t-1] * fire[i,t-1,2] +
-          gamma9[k] * trendt[i] + 
-          gamma10[k] * trendtmin[i] +
-          gamma11[k] * trendp[i]
-        
-        ## Persistence
-        logit(eps[i,t-1,k]) <- eps0[k] +
-          eps1[k] * tanom[i,t-1] +
-          eps2[k] * panom[i,t-1] +
-          eps3[k] * fire[i,t-1,1] +
-          eps4[k] * fire[i,t-1,2] +
-          eps5[k] * tanom[i,t-1] * fire[i,t-1,1] +
-          eps6[k] * tanom[i,t-1] * fire[i,t-1,2] +
-          eps7[k] * panom[i,t-1] * fire[i,t-1,1] +
-          eps8[k] * panom[i,t-1] * fire[i,t-1,2] +
-          eps9[k] * trendt[i] +
-          eps10[k] * trendtmin[i] +
-          eps11[k] * trendp[i]
-        
-        ## Latent state
-        z[i,t,k] ~ dbern(z[i,t-1,k] * (1-eps[i,t-1,k]) +
-                           (1-z[i,t-1,k]) * gamma[i,t-1,k])
-        
-        ## Derived psi
-        psi[i,t,k] <- psi[i,t-1,k] * (1-eps[i,t-1,k]) +
-          (1-psi[i,t-1,k]) * gamma[i,t-1,k]
-      }
-    }
-  }
-  
-  ## Obs sub-model ragged
-  for(v in 1:nObs) {
-    for(k in 1:nspec) {
-      logit(p_obs[v,k]) <- alpha0[k] +
-        alpha1[k] * eff.hrs[v] +
-        alpha2[k] * eff.jday[v] + 
-        alpha3[k] * eff.jday2[v] +
-        alpha4[k] * ele[site_obs[v]] + 
-        cell_det[cell_id[site_obs[v]]]
-      
-      y[v,k] ~ dbern(z[site_obs[v], year_obs[v], k] * p_obs[v,k])
-    }
-  }
-  
-  
-  ##----------------------
-  ## Derived parameters
-  ##----------------------
-  for(k in 1:nspec){
-    for(i in 1:nsites){
-      for(t in 1:(nyears-1)){
-        phi[i,t,k] <- 1 - eps[i,t,k]
-      }
-    }
-  }
-  
-  ## Mean occupancy per species
-  for(k in 1:nspec){
-    psi.fs[1,k] <- mean(psi1[1:nsites,k])
-    for(t in 2:nyears){
-      psi.fs[t,k] <- mean(z[1:nsites,t,k])
-    }
-  }
-  
-  ## Mean richness
-  for(i in 1:nsites){
-    for(t in 1:nyears){
-      richness[i,t] <- sum(z[i,t,1:nspec])
-    }
-  }
-  
-})
+# DCMCatVertNP <- nimbleCode({
+#   
+#   ##----------------------
+#   ## Species-level priors
+#   ##----------------------
+#   for(k in 1:nspec){
+#     ## Occupancy coefficients
+#     beta0[k] ~ dnorm(0, 0.01)
+#     beta1[k] ~ dnorm(0, 0.01)
+#     beta2[k] ~ dnorm(0, 0.01)
+#     beta3[k] ~ dnorm(0, 0.01)
+#     beta4[k] ~ dnorm(0, 0.01)
+#     beta5[k] ~ dnorm(0, 0.01)
+#     beta6[k] ~ dnorm(0, 0.01)
+#     
+#     ## Detection coefficients
+#     alpha0[k] ~ dnorm(0, 0.01)
+#     alpha1[k] ~ dnorm(0, 0.01)
+#     alpha2[k] ~ dnorm(0, 0.01)
+#     alpha3[k] ~ dnorm(0, 0.01)
+#     alpha4[k] ~ dnorm(0, 0.01)
+#     
+#     ## Persistence coefficients
+#     eps0[k] ~ dnorm(0, 0.01)
+#     eps1[k] ~ dnorm(0, 0.01)
+#     eps2[k] ~ dnorm(0, 0.01)
+#     eps3[k] ~ dnorm(0, 0.01)
+#     eps4[k] ~ dnorm(0, 0.01)
+#     eps5[k] ~ dnorm(0, 0.01)
+#     eps6[k] ~ dnorm(0, 0.01)
+#     eps7[k] ~ dnorm(0, 0.01)
+#     eps8[k] ~ dnorm(0, 0.01)
+#     eps9[k] ~ dnorm(0, 0.01)
+#     eps10[k] ~ dnorm(0, 0.01)
+#     eps11[k] ~ dnorm(0, 0.01)
+#     
+#     ## Colonization coefficients
+#     gamma0[k] ~ dnorm(0, 0.01)
+#     gamma1[k] ~ dnorm(0, 0.01)
+#     gamma2[k] ~ dnorm(0, 0.01)
+#     gamma3[k] ~ dnorm(0, 0.01)
+#     gamma4[k] ~ dnorm(0, 0.01)
+#     gamma5[k] ~ dnorm(0, 0.01)
+#     gamma6[k] ~ dnorm(0, 0.01)
+#     gamma7[k] ~ dnorm(0, 0.01)
+#     gamma8[k] ~ dnorm(0, 0.01)
+#     gamma9[k] ~ dnorm(0, 0.01)
+#     gamma10[k] ~ dnorm(0, 0.01)
+#     gamma11[k] ~ dnorm(0, 0.01)
+#   }
+#   
+#   ## Cell-level raneff
+#   for(c in 1:n_cells){
+#     cell_det[c] ~ dnorm(0, tau.cell_det)
+#   }
+#   sd.cell_det ~ dunif(0, 2)
+#   tau.cell_det <- pow(sd.cell_det, -2)
+#   
+#   ##----------------------
+#   ## Ecological State Process
+#   ##----------------------
+#   for(k in 1:nspec){
+#     for(i in 1:nsites){
+#       
+#       ## Initial occupancy
+#       logit(psi1[i,k]) <- beta0[k] + 
+#         beta1[k] * btemp[i] +
+#         beta2[k] * bprec[i] +
+#         beta3[k] * cc[i] +
+#         beta4[k] * trendt[i] +
+#         beta5[k] * trendtmin[i] +
+#         beta6[k] * trendp[i]
+#       
+#       z[i,1,k] ~ dbern(psi1[i,k])
+#       psi[i,1,k] <- psi1[i,k]
+#       
+#       ## State process over years
+#       for(t in 2:nyears){
+#         ## Colonization
+#         logit(gamma[i,t-1,k]) <- gamma0[k] +
+#           gamma1[k] * tanom[i, t-1] +
+#           gamma2[k] * panom[i,t-1] +
+#           gamma3[k] * fire[i, t-1, 1] +
+#           gamma4[k] * fire[i,t-1,2] +
+#           gamma5[k] * tanom[i,t-1] * fire[i,t-1,1] +
+#           gamma6[k] * tanom[i,t-1] * fire[i,t-1,2] +
+#           gamma7[k] * panom[i,t-1] * fire[i,t-1,1] +
+#           gamma8[k] * panom[i,t-1] * fire[i,t-1,2] +
+#           gamma9[k] * trendt[i] + 
+#           gamma10[k] * trendtmin[i] +
+#           gamma11[k] * trendp[i]
+#         
+#         ## Persistence
+#         logit(eps[i,t-1,k]) <- eps0[k] +
+#           eps1[k] * tanom[i,t-1] +
+#           eps2[k] * panom[i,t-1] +
+#           eps3[k] * fire[i,t-1,1] +
+#           eps4[k] * fire[i,t-1,2] +
+#           eps5[k] * tanom[i,t-1] * fire[i,t-1,1] +
+#           eps6[k] * tanom[i,t-1] * fire[i,t-1,2] +
+#           eps7[k] * panom[i,t-1] * fire[i,t-1,1] +
+#           eps8[k] * panom[i,t-1] * fire[i,t-1,2] +
+#           eps9[k] * trendt[i] +
+#           eps10[k] * trendtmin[i] +
+#           eps11[k] * trendp[i]
+#         
+#         ## Latent state
+#         z[i,t,k] ~ dbern(z[i,t-1,k] * (1-eps[i,t-1,k]) +
+#                            (1-z[i,t-1,k]) * gamma[i,t-1,k])
+#         
+#         ## Derived psi
+#         psi[i,t,k] <- psi[i,t-1,k] * (1-eps[i,t-1,k]) +
+#           (1-psi[i,t-1,k]) * gamma[i,t-1,k]
+#       }
+#     }
+#   }
+#   
+#   ## Obs sub-model ragged
+#   for(v in 1:nObs) {
+#     for(k in 1:nspec) {
+#       logit(p_obs[v,k]) <- alpha0[k] +
+#         alpha1[k] * eff.hrs[v] +
+#         alpha2[k] * eff.jday[v] + 
+#         alpha3[k] * eff.jday2[v] +
+#         alpha4[k] * ele[site_obs[v]] + 
+#         cell_det[cell_id[site_obs[v]]]
+#       
+#       y[v,k] ~ dbern(z[site_obs[v], year_obs[v], k] * p_obs[v,k])
+#     }
+#   }
+#   
+#   
+#   ##----------------------
+#   ## Derived parameters
+#   ##----------------------
+#   for(k in 1:nspec){
+#     for(i in 1:nsites){
+#       for(t in 1:(nyears-1)){
+#         phi[i,t,k] <- 1 - eps[i,t,k]
+#       }
+#     }
+#   }
+#   
+#   ## Mean occupancy per species
+#   for(k in 1:nspec){
+#     psi.fs[1,k] <- mean(psi1[1:nsites,k])
+#     for(t in 2:nyears){
+#       psi.fs[t,k] <- mean(z[1:nsites,t,k])
+#     }
+#   }
+#   
+#   ## Mean richness
+#   for(i in 1:nsites){
+#     for(t in 1:nyears){
+#       richness[i,t] <- sum(z[i,t,1:nspec])
+#     }
+#   }
+#   
+# })
 
 
 ## -------------------------------------------------------------
@@ -1390,6 +1392,73 @@ DCMCatVertNP <- nimbleCode({
 ## Begin Section: Model data and inits 
 ##
 ## -------------------------------------------------------------
+
+## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+##
+## Subsection: Data Loading and predictor scaling
+##
+## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+## Load data
+bdata <- readRDS(here("Data/Occ_Data/DCM_Ragged_Full.RDS"))  
+str(bdata)
+
+## Fix predictor scaling
+bdata$eff.jday2 <- bdata$eff.jday^2
+bdata$cc2 <- bdata$cc^2
+
+mean.ele <- mean(bdata$ele)
+sd.ele <- sd(bdata$ele)
+bdata$ele <- (bdata$ele - mean.ele)/sd.ele
+
+mean.cc <- mean(bdata$cc)
+sd.cc <- sd(bdata$cc)
+bdata$cc <- (bdata$cc - mean.cc)/sd.cc
+
+mean.cc2 <- mean(bdata$cc2)
+sd.cc2 <- sd(bdata$cc2)
+bdata$cc2 <- (bdata$cc2 - mean.cc2)/sd.cc2
+
+mean.btemp <- mean(bdata$btmax)
+sd.btemp <- sd(bdata$btmax)
+bdata$btemp <- (bdata$btmax - mean.btemp)/sd.btemp
+
+mean.bprec <- mean(bdata$bprec)
+sd.bprec <- sd(bdata$bprec)
+bdata$bprec <- (bdata$bprec - mean.bprec)/sd.bprec
+
+mean.lat <- mean(bdata$Lat)
+sd.lat <- sd(bdata$Lat)
+bdata$Lat <- (bdata$Lat - mean.lat)/sd.lat
+
+mean.jday <- mean(bdata$eff.jday)
+sd.jday <- sd(bdata$eff.jday)
+bdata$eff.jday <- (bdata$eff.jday - mean.jday)/sd.jday
+
+mean.jday2 <- mean(bdata$eff.jday2)
+sd.jday2 <- sd(bdata$eff.jday2)
+bdata$eff.jday2 <- (bdata$eff.jday2 - mean.jday2)/sd.jday2
+
+mean.hrs <- mean(bdata$eff.hrs)
+sd.hrs <- sd(bdata$eff.hrs)
+bdata$eff.hrs <- (bdata$eff.hrs - mean.hrs)/sd.hrs
+
+sd.panom <- sd(bdata$panom)
+bdata$panom <- bdata$panom/sd.panom
+
+sd.tanom <- sd(bdata$tanom)
+bdata$tanom <- bdata$tanom/sd.tanom
+
+sd.trendp <- sd(bdata$trendp)
+bdata$trendp <- bdata$trendp/sd.trendp
+
+sd.trendt <- sd(bdata$trendt)
+bdata$trendt <- bdata$trendt/sd.trendt
+
+## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+##
+## Subsection: Inits
+##
+## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 ## Filling in the gaps
 zst <- apply(bdata$y_wide, c(1,3,4), max, na.rm = T)
 zst[is.infinite(zst)] <- NA
@@ -1413,6 +1482,7 @@ any(is.na(z_init))
 
 inits <- function() {
   
+  ncells <- bdata$n_cells
   nspec <- bdata$nspec
   
   list(z = z_init,
@@ -1424,9 +1494,14 @@ inits <- function() {
        beta3 = rnorm(nspec, 0, 1),
        beta4 = rnorm(nspec, 0, 1),
        beta5 = rnorm(nspec, 0, 1),
+       beta6 = rnorm(nspec, 0, 1),
+       
        alpha0 = rnorm(nspec, 0, 1),
        alpha1 = rnorm(nspec, 0, 1),
        alpha2 = rnorm(nspec, 0, 1),
+       alpha3 = rnorm(nspec, 0, 1),
+       alpha4 = rnorm(nspec, 0, 1),
+       
        gamma0 = rnorm(nspec, 0, 1),
        gamma1 = rnorm(nspec, 0, 1),
        gamma2 = rnorm(nspec, 0, 1),
@@ -1438,6 +1513,8 @@ inits <- function() {
        gamma8 = rnorm(nspec, 0, 1),
        gamma9 = rnorm(nspec, 0, 1),
        gamma10 = rnorm(nspec, 0, 1),
+       gamma11 = rnorm(nspec, 0, 1),
+       
        eps0 = rnorm(nspec, 0, 1),
        eps1 = rnorm(nspec, 0, 1),
        eps2 = rnorm(nspec, 0, 1),
@@ -1448,76 +1525,139 @@ inits <- function() {
        eps7 = rnorm(nspec, 0, 1),
        eps8 = rnorm(nspec, 0, 1),
        eps9 = rnorm(nspec, 0, 1),
-       eps10 = rnorm(nspec, 0, 1))
-  
-  # ## Community level
-  # mu.beta0 = 0,  sd.beta0 = 1,
-  # mu.beta1 = 0,  sd.beta1 = 1,
-  # mu.beta2 = 0,  sd.beta2 = 1,
-  # mu.beta3 = 0,  sd.beta3 = 1,
-  # #mu.beta4 = 0,  sd.beta4 = 1,
-  # 
-  # mu.alpha0 = 0, sd.alpha0 = 1,
-  # mu.alpha1 = 0, sd.alpha1 = 1,
-  # mu.alpha2 = 0, sd.alpha2 = 1,
-  # 
-  # mu.eps0 = 0,  sd.eps0 = 1,
-  # mu.eps1 = 0,  sd.eps1 = 1,
-  # mu.eps2 = 0,  sd.eps2 = 1,
-  # mu.eps3 = 0,  sd.eps3 = 1,
-  # mu.eps4 = 0,  sd.eps4 = 1,
-  # mu.eps5 = 0,  sd.eps5 = 1,
-  # 
-  # mu.gamma0 = 0, sd.gamma0 = 1,
-  # mu.gamma1 = 0, sd.gamma1 = 1,
-  # mu.gamma2 = 0, sd.gamma2 = 1,
-  # mu.gamma3 = 0, sd.gamma3 = 1,
-  # mu.gamma4 = 0, sd.gamma4 = 1,
-  # mu.gamma5 = 0, sd.gamma5 = 1)
+       eps10 = rnorm(nspec, 0, 1),
+       eps11 = rnorm(nspec, 0, 1),
+       
+       ## Cell raneff
+       cell_det = rnorm(ncells, 0, 0.1),
+       sd.cell_det = runif(1, 0, 1),
+       
+       ## Community level
+       mu.beta0 = 0,  sd.beta0 = 1,
+       mu.beta1 = 0,  sd.beta1 = 1,
+       mu.beta2 = 0,  sd.beta2 = 1,
+       mu.beta3 = 0,  sd.beta3 = 1,
+       mu.beta4 = 0,  sd.beta4 = 1,
+       mu.beta5 = 0,  sd.beta5 = 1,
+       mu.beta6 = 0,  sd.beta6 = 1,
+       
+       mu.alpha0 = 0, sd.alpha0 = 1,
+       mu.alpha1 = 0, sd.alpha1 = 1,
+       mu.alpha2 = 0, sd.alpha2 = 1,
+       mu.alpha3 = 0, sd.alpha3 = 1,
+       mu.alpha4 = 0, sd.alpha4 = 1,
+       
+       mu.eps0 = 0,  sd.eps0 = 1,
+       mu.eps1 = 0,  sd.eps1 = 1,
+       mu.eps2 = 0,  sd.eps2 = 1,
+       mu.eps3 = 0,  sd.eps3 = 1,
+       mu.eps4 = 0,  sd.eps4 = 1,
+       mu.eps5 = 0,  sd.eps5 = 1,
+       mu.eps6 = 0,  sd.eps6 = 1,
+       mu.eps7 = 0,  sd.eps7 = 1,
+       mu.eps8 = 0,  sd.eps8 = 1,
+       mu.eps9 = 0,  sd.eps9 = 1,
+       mu.eps10 = 0,  sd.eps10 = 1,
+       mu.eps11 = 0,  sd.eps11 = 1,
+       
+       mu.gamma0 = 0, sd.gamma0 = 1,
+       mu.gamma1 = 0, sd.gamma1 = 1,
+       mu.gamma2 = 0, sd.gamma2 = 1,
+       mu.gamma3 = 0, sd.gamma3 = 1,
+       mu.gamma4 = 0, sd.gamma4 = 1,
+       mu.gamma5 = 0, sd.gamma5 = 1,
+       mu.gamma6 = 0, sd.gamma6 = 1,
+       mu.gamma7 = 0, sd.gamma7 = 1,
+       mu.gamma8 = 0, sd.gamma8 = 1,
+       mu.gamma9 = 0, sd.gamma9 = 1,
+       mu.gamma10 = 0, sd.gamma10 = 1,
+       mu.gamma11 = 0, sd.gamma11 = 1)
 }
 
-# Parameters monitored
-params <- c(paste0("alpha",
-                  0:4),
-            paste0("beta",
-                  0:6),
-            paste0("gamma",
-                  0:11),
-            paste0("eps",
-                  0:11),
-            ## Community
-            paste0("mu.alpha",
-                   0:4),
-            paste0("mu.beta",
-                   0:6),
-            paste0("mu.gamma",
-                   0:11),
-            paste0("mu.eps",
-                  0:11),
-            ## Derived params
-            "richness",
-            "phi",
-            "psi"
-            )
+## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+##
+## Subsection: Monitors
+##
+## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+## Parameters monitored
+nspec <- bdata$nspec
 
+params <- c(
+  paste0("beta", 0:6),
+  paste0("alpha", 0:4),
+  paste0("gamma", 0:11),
+  paste0("eps",   0:11),
+  ## Community effects
+  paste0("mu.beta",  0:6),
+  paste0("mu.alpha", 0:4),
+  paste0("mu.gamma", 0:11),
+  paste0("mu.eps",   0:11),
+  paste0("sd.beta",  0:6),
+  paste0("sd.alpha", 0:4),
+  paste0("sd.gamma", 0:11),
+  paste0("sd.eps",   0:11),
+  ## Derived params
+  "richness",
+  "phi",
+  "psi",
+  "cell_det",
+  "sd.cell_det"
+)
 
-## Load data
-bdata <- readRDS(here("Data/Occ_Data/LABU_Multi_Test.RDS"))  
-
-
-## MCMC settings
+## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+##
+## Subsection: MCMC Settings
+##
+## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 nburnin = 2000
 niter = 20000
 nthin = 20
 nchain = 3
 
-## Run the sampler
-samples <- nimbleMCMC(
-  code = dynOcc,
-  constants = bdata,
-  inits = inits,
-  monitors = params,
-  niter = niter,
-  nburnin = nburnin,
-  thin = nthin,
-  nchains = nchain)
+## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+##
+## Subsection: Model Compilation, MCMC Config, and Building
+##
+## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+DCMmodel <- nimbleModel(
+  code = DCMCatVert,
+  data = list(y = bdata$y),   ## match name in nimbleCode
+  constants = bdata[names(bdata) != "y"],
+  inits = inits()
+)
+
+## Check the node names
+node_names <- DCMmodel$getNodeNames()
+missed_nodes <- setdiff(params, node_names)
+
+## Compile
+Cmodel <- compileNimble(DCMmodel)
+
+## Configure model
+conf <- configureMCMC(DCMmodel, monitors = params)
+
+print(conf$getMonitors())
+
+## Build
+Rmcmc <- buildMCMC(conf)
+
+## Compile 2x
+Cmcmc <- compileNimble(Rmcmc, project = DCMmodel)
+
+# # ## Run for a dry 
+# Cmcmc$run(niter = 1000, nburnin = 500)
+# 
+# samples_dry <- as.matrix(Cmcmc$mvSamples)
+# head(samples_dry)
+
+samples <- runMCMC(Cmcmc,
+                   niter = niter,
+                   nburnin = nburnin,
+                   thin = nthin,
+                   nchains = nchain,
+                   samplesAsCodaMCMC = FALSE,
+                   summary = FALSE)
+
+## Write to file
+saveRDS(samples, file = "D:/DCM_Samples/DCMmodel_mcmc_output.rds")
+
