@@ -1211,7 +1211,7 @@ DCMCatVert <- nimbleCode({
       richness[i,t] <- sum(z[i,t,1:nspec])
     }
   }
-  
+
 })
 
 
@@ -1380,6 +1380,332 @@ DCMCatVert <- nimbleCode({
 #   
 # })
 
+## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+##
+## Subsection: DCM Categorical Vertical structure
+##
+## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+DCMCatVertFP <- nimbleCode({
+  
+  ##----------------------
+  ## Species-level priors
+  ##----------------------
+  for(k in 1:nspec){
+    ## Occupancy coefficients
+    beta0[k] ~ dnorm(mu.beta0, tau.beta0)
+    beta1[k] ~ dnorm(mu.beta1, tau.beta1)
+    beta2[k] ~ dnorm(mu.beta2, tau.beta2)
+    beta3[k] ~ dnorm(mu.beta3, tau.beta3)
+    beta4[k] ~ dnorm(mu.beta4, tau.beta4)
+    beta5[k] ~ dnorm(mu.beta5, tau.beta5)
+    beta6[k] ~ dnorm(mu.beta6, tau.beta6)
+    
+    ## Detection coefficients
+    alpha0[k] ~ dnorm(mu.alpha0, tau.alpha0)
+    alpha1[k] ~ dnorm(mu.alpha1, tau.alpha1)
+    alpha2[k] ~ dnorm(mu.alpha2, tau.alpha2)
+    alpha3[k] ~ dnorm(mu.alpha3, tau.alpha3)
+    alpha4[k] ~ dnorm(mu.alpha4, tau.alpha4)
+    
+    ## Persistence coefficients
+    eps0[k] ~ dnorm(mu.eps0, tau.eps0)
+    eps1[k] ~ dnorm(mu.eps1, tau.eps1)
+    eps2[k] ~ dnorm(mu.eps2, tau.eps2)
+    eps3[k] ~ dnorm(mu.eps3, tau.eps3)
+    eps4[k] ~ dnorm(mu.eps4, tau.eps4)
+    eps5[k] ~ dnorm(mu.eps5, tau.eps5)
+    eps6[k] ~ dnorm(mu.eps6, tau.eps6)
+    eps7[k] ~ dnorm(mu.eps7, tau.eps7)
+    eps8[k] ~ dnorm(mu.eps8, tau.eps8)
+    eps9[k] ~ dnorm(mu.eps9, tau.eps9)
+    eps10[k] ~ dnorm(mu.eps10, tau.eps10)
+    eps11[k] ~ dnorm(mu.eps11, tau.eps11)
+    
+    ## Colonization coefficients
+    gamma0[k] ~ dnorm(mu.gamma0, tau.gamma0)
+    gamma1[k] ~ dnorm(mu.gamma1, tau.gamma1)
+    gamma2[k] ~ dnorm(mu.gamma2, tau.gamma2)
+    gamma3[k] ~ dnorm(mu.gamma3, tau.gamma3)
+    gamma4[k] ~ dnorm(mu.gamma4, tau.gamma4)
+    gamma5[k] ~ dnorm(mu.gamma5, tau.gamma5)
+    gamma6[k] ~ dnorm(mu.gamma6, tau.gamma6)
+    gamma7[k] ~ dnorm(mu.gamma7, tau.gamma7)
+    gamma8[k] ~ dnorm(mu.gamma8, tau.gamma8)
+    gamma9[k] ~ dnorm(mu.gamma9, tau.gamma9)
+    gamma10[k] ~ dnorm(mu.gamma10, tau.gamma10)
+    gamma11[k] ~ dnorm(mu.gamma11, tau.gamma11)
+  }
+  
+  ## Cell-level raneff
+  for(c in 1:n_cells){
+    cell_det[c] ~ dnorm(0, tau.cell_det)
+  }
+  sd.cell_det ~ dunif(0, 2)
+  tau.cell_det <- pow(sd.cell_det, -2)
+  
+  ## False-positive Priors
+  for(k in 1:nspec){
+    alphaFP[k] ~ dnorm(-2.944, 4)
+  }
+  
+  ##----------------------
+  ## Hyperpriors
+  ##----------------------
+  ## Occupancy hyperpriors
+  mu.beta0 ~ dnorm(0, 0.01)
+  sd.beta0 ~ dunif(0, 2)
+  tau.beta0 <- pow(sd.beta0, -2)
+  
+  mu.beta1 ~ dnorm(0, 0.01)
+  sd.beta1 ~ dunif(0, 2)
+  tau.beta1 <- pow(sd.beta1, -2)
+  
+  mu.beta2 ~ dnorm(0, 0.01)
+  sd.beta2 ~ dunif(0, 2)
+  tau.beta2 <- pow(sd.beta2, -2)
+  
+  mu.beta3 ~ dnorm(0, 0.01)
+  sd.beta3 ~ dunif(0, 2)
+  tau.beta3 <- pow(sd.beta3, -2)
+  
+  mu.beta4 ~ dnorm(0, 0.01)
+  sd.beta4 ~ dunif(0, 2)
+  tau.beta4 <- pow(sd.beta4, -2)
+  
+  mu.beta5 ~ dnorm(0, 0.01)
+  sd.beta5 ~ dunif(0, 2)
+  tau.beta5 <- pow(sd.beta5, -2)
+  
+  mu.beta6 ~ dnorm(0, 0.01)
+  sd.beta6 ~ dunif(0, 2)
+  tau.beta6 <- pow(sd.beta6, -2)
+  
+  ## Detection hyperpriors
+  mu.alpha0 ~ dnorm(0, 0.01)
+  sd.alpha0 ~ dunif(0, 2)
+  tau.alpha0 <- pow(sd.alpha0, -2)
+  
+  mu.alpha1 ~ dnorm(0, 0.01)
+  sd.alpha1 ~ dunif(0, 2)
+  tau.alpha1 <- pow(sd.alpha1, -2)
+  
+  mu.alpha2 ~ dnorm(0, 0.01)
+  sd.alpha2 ~ dunif(0, 2)
+  tau.alpha2 <- pow(sd.alpha2, -2)
+  
+  mu.alpha3 ~ dnorm(0, 0.01)
+  sd.alpha3 ~ dunif(0, 2)
+  tau.alpha3 <- pow(sd.alpha3, -2)
+  
+  mu.alpha4 ~ dnorm(0, 0.01)
+  sd.alpha4 ~ dunif(0, 2)
+  tau.alpha4 <- pow(sd.alpha4, -2)
+  
+  ## Persistence hyperpriors
+  mu.eps0 ~ dnorm(0, 0.01)
+  sd.eps0 ~ dunif(0, 2)
+  tau.eps0 <- pow(sd.eps0, -2)
+  
+  mu.eps1 ~ dnorm(0, 0.01)
+  sd.eps1 ~ dunif(0, 2)
+  tau.eps1 <- pow(sd.eps1, -2)
+  
+  mu.eps2 ~ dnorm(0, 0.01)
+  sd.eps2 ~ dunif(0, 2)
+  tau.eps2 <- pow(sd.eps2, -2)
+  
+  mu.eps3 ~ dnorm(0, 0.01)
+  sd.eps3 ~ dunif(0, 2)
+  tau.eps3 <- pow(sd.eps3, -2)
+  
+  mu.eps4 ~ dnorm(0, 0.01)
+  sd.eps4 ~ dunif(0, 2)
+  tau.eps4 <- pow(sd.eps4, -2)
+  
+  mu.eps5 ~ dnorm(0, 0.01)
+  sd.eps5 ~ dunif(0, 2)
+  tau.eps5 <- pow(sd.eps5, -2)
+  
+  mu.eps6 ~ dnorm(0, 0.01)
+  sd.eps6 ~ dunif(0, 2)
+  tau.eps6 <- pow(sd.eps6, -2)
+  
+  mu.eps7 ~ dnorm(0, 0.01)
+  sd.eps7 ~ dunif(0, 2)
+  tau.eps7 <- pow(sd.eps7, -2)
+  
+  mu.eps8 ~ dnorm(0, 0.01)
+  sd.eps8 ~ dunif(0, 2)
+  tau.eps8 <- pow(sd.eps8, -2)
+  
+  mu.eps9 ~ dnorm(0, 0.01)
+  sd.eps9 ~ dunif(0, 2)
+  tau.eps9 <- pow(sd.eps9, -2)
+  
+  mu.eps10 ~ dnorm(0, 0.01)
+  sd.eps10 ~ dunif(0, 2)
+  tau.eps10 <- pow(sd.eps10, -2)
+  
+  mu.eps11 ~ dnorm(0, 0.01)
+  sd.eps11 ~ dunif(0, 2)
+  tau.eps11 <- pow(sd.eps11, -2)
+  
+  ## Colonization hyperpriors
+  mu.gamma0 ~ dnorm(0, 0.01)
+  sd.gamma0 ~ dunif(0, 2)
+  tau.gamma0 <- pow(sd.gamma0, -2)
+  
+  mu.gamma1 ~ dnorm(0, 0.01)
+  sd.gamma1 ~ dunif(0, 2)
+  tau.gamma1 <- pow(sd.gamma1, -2)
+  
+  mu.gamma2 ~ dnorm(0, 0.01)
+  sd.gamma2 ~ dunif(0, 2)
+  tau.gamma2 <- pow(sd.gamma2, -2)
+  
+  mu.gamma3 ~ dnorm(0, 0.01)
+  sd.gamma3 ~ dunif(0, 2)
+  tau.gamma3 <- pow(sd.gamma3, -2)
+  
+  mu.gamma4 ~ dnorm(0, 0.01)
+  sd.gamma4 ~ dunif(0, 2)
+  tau.gamma4 <- pow(sd.gamma4, -2)
+  
+  mu.gamma5 ~ dnorm(0, 0.01)
+  sd.gamma5 ~ dunif(0, 2)
+  tau.gamma5 <- pow(sd.gamma5, -2)
+  
+  mu.gamma6 ~ dnorm(0, 0.01)
+  sd.gamma6 ~ dunif(0, 2)
+  tau.gamma6 <- pow(sd.gamma6, -2)
+  
+  mu.gamma7 ~ dnorm(0, 0.01)
+  sd.gamma7 ~ dunif(0, 2)
+  tau.gamma7 <- pow(sd.gamma7, -2)
+  
+  mu.gamma8 ~ dnorm(0, 0.01)
+  sd.gamma8 ~ dunif(0, 2)
+  tau.gamma8 <- pow(sd.gamma8, -2)
+  
+  mu.gamma9 ~ dnorm(0, 0.01)
+  sd.gamma9 ~ dunif(0, 2)
+  tau.gamma9 <- pow(sd.gamma9, -2)
+  
+  mu.gamma10 ~ dnorm(0, 0.01)
+  sd.gamma10 ~ dunif(0, 2)
+  tau.gamma10 <- pow(sd.gamma10, -2)
+  
+  mu.gamma11 ~ dnorm(0, 0.01)
+  sd.gamma11 ~ dunif(0, 2)
+  tau.gamma11 <- pow(sd.gamma11, -2)
+  
+  ##----------------------
+  ## Ecological State Process
+  ##----------------------
+  for(k in 1:nspec){
+    for(i in 1:nsites){
+      
+      ## Initial occupancy
+      logit(psi1[i,k]) <- beta0[k] + 
+        beta1[k] * btemp[i] +
+        beta2[k] * bprec[i] +
+        beta3[k] * cc[i] +
+        beta4[k] * trendt[i] +
+        beta5[k] * trendtmin[i] +
+        beta6[k] * trendp[i]
+      
+      z[i,1,k] ~ dbern(psi1[i,k])
+      psi[i,1,k] <- psi1[i,k]
+      
+      ## State process over years
+      for(t in 2:nyears){
+        ## Colonization
+        logit(gamma[i,t-1,k]) <- gamma0[k] +
+          gamma1[k] * tanom[i, t-1] +
+          gamma2[k] * panom[i,t-1] +
+          gamma3[k] * fire[i, t-1, 1] +
+          gamma4[k] * fire[i,t-1,2] +
+          gamma5[k] * tanom[i,t-1] * fire[i,t-1,1] +
+          gamma6[k] * tanom[i,t-1] * fire[i,t-1,2] +
+          gamma7[k] * panom[i,t-1] * fire[i,t-1,1] +
+          gamma8[k] * panom[i,t-1] * fire[i,t-1,2] +
+          gamma9[k] * trendt[i] + 
+          gamma10[k] * trendtmin[i] +
+          gamma11[k] * trendp[i]
+        
+        ## Persistence
+        logit(eps[i,t-1,k]) <- eps0[k] +
+          eps1[k] * tanom[i,t-1] +
+          eps2[k] * panom[i,t-1] +
+          eps3[k] * fire[i,t-1,1] +
+          eps4[k] * fire[i,t-1,2] +
+          eps5[k] * tanom[i,t-1] * fire[i,t-1,1] +
+          eps6[k] * tanom[i,t-1] * fire[i,t-1,2] +
+          eps7[k] * panom[i,t-1] * fire[i,t-1,1] +
+          eps8[k] * panom[i,t-1] * fire[i,t-1,2] +
+          eps9[k] * trendt[i] +
+          eps10[k] * trendtmin[i] +
+          eps11[k] * trendp[i]
+        
+        ## Latent state
+        z[i,t,k] ~ dbern(z[i,t-1,k] * (1-eps[i,t-1,k]) +
+                           (1-z[i,t-1,k]) * gamma[i,t-1,k])
+        
+        ## Derived psi
+        psi[i,t,k] <- psi[i,t-1,k] * (1-eps[i,t-1,k]) +
+          (1-psi[i,t-1,k]) * gamma[i,t-1,k]
+      }
+    }
+  }
+  
+  ## Obs sub-model ragged
+  for(v in 1:nObs) {
+    for(k in 1:nspec) {
+      logit(p_obs[v,k]) <- alpha0[k] +
+        alpha1[k] * eff.hrs[v] +
+        alpha2[k] * eff.jday[v] + 
+        alpha3[k] * eff.jday2[v] +
+        alpha4[k] * ele[site_obs[v]] + 
+        cell_det[cell_id[site_obs[v]]]
+      
+      y[v,k] ~ dbern(z[site_obs[v], year_obs[v], k] * p_obs[v,k] +
+                     (1 - z[site_obs[v], year_obs[v], k]) * ilogit(alphaFP[k]))
+    }
+  }
+  
+  
+  ##----------------------
+  ## Derived parameters
+  ##----------------------
+  for(k in 1:nspec){
+    for(i in 1:nsites){
+      for(t in 1:(nyears-1)){
+        phi[i,t,k] <- 1 - eps[i,t,k]
+      }
+    }
+  }
+  
+  ## Mean occupancy per species
+  for(k in 1:nspec){
+    psi.fs[1,k] <- mean(psi1[1:nsites,k])
+    for(t in 2:nyears){
+      psi.fs[t,k] <- mean(z[1:nsites,t,k])
+    }
+  }
+  
+  ## Mean richness
+  for(i in 1:nsites){
+    for(t in 1:nyears){
+      richness[i,t] <- sum(z[i,t,1:nspec])
+    }
+  }
+  
+  ## FP Rate
+  for(k in 1:nspec){
+    fp_rate[k] <- ilogit(alphaFP[k])
+  }
+  
+})
 
 ## -------------------------------------------------------------
 ##
@@ -1532,6 +1858,9 @@ inits <- function() {
        cell_det = rnorm(ncells, 0, 0.1),
        sd.cell_det = runif(1, 0, 1),
        
+       ## FP
+       alphaFP <- rnorm(nspec, mean = -2.944, sd = 0.1),
+       
        ## Community level
        mu.beta0 = 0,  sd.beta0 = 1,
        mu.beta1 = 0,  sd.beta1 = 1,
@@ -1601,7 +1930,10 @@ params <- c(
   "phi",
   "psi",
   "cell_det",
-  "sd.cell_det"
+  "sd.cell_det",
+  ## FP
+  "alphaFP",
+  "fp_rate"
 )
 
 ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1620,7 +1952,7 @@ nchain = 3
 ##
 ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 DCMmodel <- nimbleModel(
-  code = DCMCatVert,
+  code = DCMCatVertFP,
   data = list(y = bdata$y),   ## match name in nimbleCode
   constants = bdata[names(bdata) != "y"],
   inits = inits()
@@ -1659,5 +1991,5 @@ samples <- runMCMC(Cmcmc,
                    summary = FALSE)
 
 ## Write to file
-saveRDS(samples, file = "D:/DCM_Samples/DCMmodel_mcmc_output.rds")
+saveRDS(samples, file = "D:/DCM_Samples/DCMmodel_mcmc_output_FP.rds")
 
