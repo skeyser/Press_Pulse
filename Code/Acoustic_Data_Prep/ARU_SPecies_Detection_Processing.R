@@ -95,12 +95,12 @@ source(here("./Code/Acoustic_Data_Prep/Sierra_functions.R"))
 thresh <- readr::read_csv("./Data/Thresholds_2021_20230309_BestThreshold_975min.csv")
 
 ## Run the function
-aru_det_file_gen(det_dir = "C:/Users/srk252/Documents/Rprojs/Press_Pulse/Data/Detections_By_Species/",
-                 det_years = c("2021", "2022", "2023", "2024"),
+aru_det_file_gen(det_dir = "D:/Rprojs/Press_Pulse/Data/Detections_By_Species/",
+                 det_years = c("2021", "2022", "2023", "2024", "2025"),
                  seas_format = F,
                  seas_outdir = "C:/Users/srk252/Documents/Rprojs/Press_Pulse/Data/Seasonal_Summaries/",
                  occ_format = T,
-                 occ_outdir = "C:/Users/srk252/Documents/Rprojs/Press_Pulse/Data/Occ_Data/Thresh_By_Species_NoDetFilter/",
+                 occ_outdir = "D:/Rprojs/Press_Pulse/Data/Occ_Data/Thresh_By_Species_NoDetFilter/",
                  eff_file = T,
                  coord_link = T,
                  d_thresh = thresh,
@@ -115,7 +115,9 @@ aru_det_file_gen(det_dir = "C:/Users/srk252/Documents/Rprojs/Press_Pulse/Data/De
                  date_range = c("2021-06-01", "2021-06-30",
                                 "2022-06-01", "2022-06-30",
                                 "2023-06-01", "2023-06-30",
-                                "2024-06-01", "2024-06-30"),
+                                "2024-06-01", "2024-06-30",
+                                "2025-06-01", "2025-06-30"
+                   ),
                  eff_site_name = "Cell_U",
                  eff_filter = 0,
                  verbose = F)
