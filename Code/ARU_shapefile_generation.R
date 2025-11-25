@@ -42,10 +42,11 @@ source(here("./Code/Enviro_Data_Prep/CBI_Extract_Funs.R"))
 aru_locs <- cabio_loc_query(years = c(2021,
                                       2022,
                                       2023,
-                                      2024)) |> 
+                                      2024,
+                                      2025)) |> 
   mutate(Long = st_coordinates(geometry)[,1],
          Lat = st_coordinates(geometry)[,2])
 
 ## Write the shapefile for ingesting into GEE
-st_write(aru_locs, here("./Data/Spatial_Data/ARU_Locs_2021_2024.shp"), append = FALSE)
+st_write(aru_locs, here("./Data/Spatial_Data/ARU_Locs_2021_2025.shp"), append = FALSE)
 
