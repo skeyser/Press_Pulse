@@ -35,7 +35,7 @@ library(exactextractr)
 ## -------------------------------------------------------------
 
 ## List the files for CFO
-cfo.list <- list.files("C:/Users/srk252/Documents/GIS_Data/CFO/", full.names = T, pattern = "cfo")
+cfo.list <- list.files("D:/GIS_Data/CFO/", full.names = T, pattern = "cfo")
 
 cfo.r <- lapply(cfo.list, rast)
 cfo.r <- do.call(c, cfo.r)
@@ -48,11 +48,11 @@ plot(cfo.r)
 # plot(cancov)
 
 ## Testing the validity of supplying the same arus for all 4 years
-locs <- st_read(here("Data/Spatial_Data/ARU_Locs_2021_2024.shp"))
+locs <- st_read(here("Data/Spatial_Data/ARU_Locs_2021_2025.shp"))
 locs <- locs |> st_transform(crs = crs(cfo.r))
 
 ## Generate the buffer
-locs <- locs |> st_buffer(dist = units::set_units(120, "m"))
+locs <- locs |> st_buffer(dist = units::set_units(500, "m"))
 
 ## Fast extract
 cfo <- exact_extract(cfo.r, locs, fun = "mean")
@@ -63,7 +63,7 @@ colnames(locs) <- gsub("mean.", "", colnames(locs))
 
 ## Write to file
 locs <- locs |> st_drop_geometry()
-data.table::fwrite(locs, file = here("Data/CFO_ARU_21_24.csv"))
+data.table::fwrite(locs, file = here("Data/CFO_ARU_21_25.csv"))
 
 ## Correlations
 cor(locs |> select(CanopyBaseHeight:SurfaceFuels))

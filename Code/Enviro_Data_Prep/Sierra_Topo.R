@@ -34,14 +34,14 @@ library(sf)
 ## -------------------------------------------------------------
 
 ## Data loading
-topo.paths <- list.files("C:/Users/srk252/Documents/GIS_Data/Topo/", full.names = T)
+topo.paths <- list.files("D:/GIS_Data/Topo/", full.names = T)
 topo.r <- lapply(topo.paths, rast)
 topo.r <- do.call(c, topo.r)
 
 plot(topo.r)
 
 ## Load in the ARU locations
-locs <- st_read(here("Data/Spatial_Data/ARU_Locs_2021_2024.shp"))
+locs <- st_read(here("Data/Spatial_Data/ARU_Locs_2021_2025.shp"))
 glimpse(locs)
 head(unique(sort(locs$Cll_Unt)))
 
@@ -52,7 +52,7 @@ head(unique(sort(locs$Cll_Unt)))
 ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 ## generate the buffer - starting with 120 but can set variable buffers if needed
 locs.buff <- locs |> 
-  st_buffer(dist = units::set_units(120, "m")) |> 
+  st_buffer(dist = units::set_units(500, "m")) |> 
   st_transform(crs = crs(topo.r))
 
 ## terra extraction
@@ -69,4 +69,4 @@ locs <- locs |>
   
 
 ## Write the file
-write.csv(locs, file = here("Data/Topo_Data_ARU_21_24.csv"))
+write.csv(locs, file = here("Data/Topo_Data_ARU_21_25.csv"))

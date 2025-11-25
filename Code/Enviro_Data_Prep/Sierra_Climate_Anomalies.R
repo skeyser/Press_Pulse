@@ -65,11 +65,21 @@ anprcp.path <- sort(list.files(here("Data/Spatial_Data/Climate_Anomaly_Rasters/"
 
 ## Trends
 trtmax <- terra::rast("Data/Spatial_Data/Climate_Trend_Rasters/Tmax_Trend_Slope_1980_2020.tif")
+trtmaxmam <- terra::rast("Data/Spatial_Data/Climate_Trend_Rasters/Spring_Tmax_Trend_Slope_1980_2020.tif")
+trtmaxjja <- terra::rast("Data/Spatial_Data/Climate_Trend_Rasters/Summer_Tmax_Trend_Slope_1980_2020.tif")
 trtmin <- terra::rast("Data/Spatial_Data/Climate_Trend_Rasters/Tmin_Trend_Slope_1980_2020.tif")
+trtminmam <- terra::rast("Data/Spatial_Data/Climate_Trend_Rasters/Spring_Tmax_Trend_Slope_1980_2020.tif")
+trtminjja <- terra::rast("Data/Spatial_Data/Climate_Trend_Rasters/Summer_Tmax_Trend_Slope_1980_2020.tif")
 trprcp <- terra::rast("Data/Spatial_Data/Climate_Trend_Rasters/Ppt_Trend_Slope_1980_2020.tif")
+trprcpmam <- terra::rast("Data/Spatial_Data/Climate_Trend_Rasters/Spring_Ppt_Trend_Slope_1980_2020.tif")
+trprcpjja <- terra::rast("Data/Spatial_Data/Climate_Trend_Rasters/Summer_Ppt_Trend_Slope_1980_2020.tif")
 
-trends <- c(trtmax, trtmin, trprcp)
-names(trends) <- c("Trend_Tmax", "Trend_Tmin", "Trend_Prcp")
+trends <- c(trtmax, trtmaxmam, trtmaxjja,
+            trtmin, trtminmam, trtminjja,
+            trprcp, trprcpmam, trprcpjja)
+names(trends) <- c("Trend_Tmax", "Trend_Tmax_MAM", "Trend_Tmax_JJA", 
+                   "Trend_Tmin", "Trend_Tmin_MAM", "Trend_Tmin_JJA",
+                   "Trend_Prcp", "Trend_Prcp_MAM", "Trend_Prcp_JJA")
 plot(trends)
 
 ## read in the tifs
@@ -86,7 +96,7 @@ anom.r <- c(tanom.r, manom.r, panom.r, antanom.r, anmanom.r, anpanom.r)
 names(anom.r) <- stringr::str_extract(sources(anom.r), pattern = "Tmax_Anomaly_\\d{4}|Tmin_Anomaly_\\d{4}|Precip_Anomaly_\\d{4}|Annual_Tmax_Anomaly_\\d{4}|Annual_Tmin_Anomaly_\\d{4}|Annual_Prcp_Anomaly_\\d{4}")
 
 ## Load in the ARU locations
-locs <- st_read(here("Data/Spatial_Data/ARU_Locs_2021_2024.shp"))
+locs <- st_read(here("Data/Spatial_Data/ARU_Locs_2021_2025.shp"))
 glimpse(locs)
 head(unique(sort(locs$Cll_Unt)))
 
@@ -97,7 +107,7 @@ head(unique(sort(locs$Cll_Unt)))
 ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 ## generate the buffer - starting with 120 but can set variable buffers if needed
-locs.buff <- locs |> st_buffer(dist = units::set_units(120, "m"))
+locs.buff <- locs |> st_buffer(dist = units::set_units(500, "m"))
 
 ## terra extraction
 anom.ex <- exact_extract(anom.r, locs.buff, fun = "mean")
@@ -210,7 +220,7 @@ static_clim_df <- as.data.frame(static_clim_df)
 clim_dat <- list(static_clim_df, dyn_clim)
 str(clim_dat)
 
-saveRDS(clim_dat, file = here("Data/Climate_DCM_Covs.RDS"))
+saveRDS(clim_dat, file = here("Data/Climate_DCM_Covs_2021_2024.RDS"))
 
 ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 ##
