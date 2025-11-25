@@ -46,17 +46,105 @@ source(here("./Code/Enviro_Data_Prep/CBI_Extract_Funs.R"))
 ## -------------------------------------------------------------
 
 ## Testing the validity of supplying the same arus for all 4 years
-locs <- st_read(here("Data/Spatial_Data/ARU_Locs_2021_2024.shp"))
+locs <- st_read(here("Data/Spatial_Data/ARU_Locs_2021_2025.shp"))
 
 ## Small shifts in ARU locations make this a weird task
 ## Could estimate the shift per unit and accommodate with
 ## buffering...?
-locs <- locs |> 
+unique_units <- unique(locs$Cll_Unt)
+table(locs$srvy_yr)
+
+loc_option <- 2
+
+if(loc_option == 1){
+## Option 1
+## Location are represented as an average 
+locs_fixed <- locs |> 
   select(Cell_Unit = Cll_Unt, deployment_name = dplymn_, Long, Lat) |> 
   distinct() |> 
   arrange(Cell_Unit) |> 
-  tidyr::crossing(survey_year = 2021:2024)
+  st_drop_geometry() |> 
+  tidyr::crossing(survey_year = 2021:2025) |> 
+  group_by(Cell_Unit, deployment_name, survey_year) |> 
+  summarise(Lat = mean(Lat),
+            Long = mean(Long)) |> 
+  st_as_sf(coords = c("Long", "Lat"), crs = 4326)
 
+locs <- locs_fixed
+print("Using the centroid value for all observations and filling.")
+
+} else if(loc_option == 2){
+
+## Option 2
+## Locations from the observed points are variable (accommodate shifts)
+## but the missing years are the centroid value
+
+## Observed ARU locations
+locs_obs <- locs |> 
+  select(Cell_Unit = Cll_Unt,
+         deployment_name = dplymn_,
+         survey_year = srvy_yr,
+         geometry)
+
+## Centroids to act as filler for the missing survey years
+locs_centroids <- locs_obs |> 
+  group_by(Cell_Unit, deployment_name) |> 
+  summarise(geometry = st_centroid(st_union(geometry)), .groups = "drop")
+
+## Expanded year set
+years <- tibble(survey_year = 2021:2025)
+
+site_year_grid <- locs_centroids |> 
+  tidyr::crossing(years)
+
+## Join to bring in the new sites
+locs_cent_fill <- site_year_grid |> 
+  left_join(
+    locs_obs |> rename(geometry_obs = geometry),
+    by = c("Cell_Unit", "deployment_name", "survey_year")
+  )
+
+## Replace the centroid with observed
+locs_mixed <- locs_cent_fill |> 
+  mutate(
+    geometry = if_else(
+      !st_is_empty(geometry_obs),
+      geometry_obs,
+      geometry
+    )
+  ) |> 
+  select(Cell_Unit, deployment_name, survey_year, geometry) |> 
+  st_as_sf()
+
+locs <- locs_mixed
+print("Filling coordinated with centroid position to deal with jitter.")
+
+}
+
+
+## Checking some distance based measurements
+rep_d <- locs |> 
+  st_transform(., crs = 3310) |> 
+  group_by(deployment_name) |> 
+  filter(n() > 1) |> 
+  summarise(
+    max_dist = {
+      dist_mat <- st_distance(geometry)
+      max(dist_mat)
+    },
+    mean_dist = {
+      dist_mat <- st_distance(geometry)
+      mean(dist_mat)
+    },
+    min_dist = {
+      dist_mat <- st_distance(geometry)
+      min(dist_mat)
+    },
+    num_dep = {
+      length(geometry)
+    },
+    .groups = "drop"
+  )
 
 ## *************************************************************
 ##
@@ -79,6 +167,7 @@ aru_fire_prep <- function(fire_prod = NULL, # character vector of desired fire o
                                            #2023,
                                            #2024
                                            ), # Survey year is only applicable for locs_from_cabio = TRUE
+                          cbi_path = NULL,
                           id_col = "deployment_name",
                           year_col = NULL,
                           x_col = "Long", # chr for x coordinate col name
@@ -112,7 +201,9 @@ aru_fire_prep <- function(fire_prod = NULL, # character vector of desired fire o
   ##
   ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   
-  cbi_stack <- cbi_clean(cbi_path = "C:/Users/srk252/Documents/GIS_Data/CBI_Sierra/CBI_1985_2024_ZeroFilling_Stack.tif")
+  cbi_stack <- cbi_clean(cbi_path = NULL, 
+                         cbi_stack_path = "D:/GIS_Data/CBI_Sierra/CBI_1985_2024_ZeroFilling_Stack_New.tif",
+                         save_path = NULL)
   
   ## Project the points
   aru_locs <- st_transform(aru_locs,
@@ -298,7 +389,7 @@ aru_fire_prep <- function(fire_prod = NULL, # character vector of desired fire o
                                    intervals = intervals,
                                    buff_size = buff_size,
                                    id_col = id_col,
-                                   metrics = c("lsm_c_pland"))
+                                   metrics = c("lsm_c_pland", "lsm_c_ed"))
   } else {
     fire_lscp_out <- NULL
   }
@@ -309,57 +400,21 @@ aru_fire_prep <- function(fire_prod = NULL, # character vector of desired fire o
 
 } ## function closure
 
-
-buffSize <- 120
+## Set the buffer size
+buffSize <- 500
 
 fire_sev21 <- aru_fire_prep(fire_prod = c("fire_severity"),
                             locs_from_cabio = FALSE,
-                            custom_locs = locs |> filter(survey_year == 2021),
-                            survey_years = c(2021),
+                            custom_locs = locs,
+                            survey_years = c(2021, 2022, 2023, 2024, 2025),
                             intervals = c("1-10"), #only interested in recent fire
                             id_col = "deployment_name",
                             buff_size = buffSize,
-                            landscape_metrics = FALSE
+                            landscape_metrics = TRUE
 )
 
-str(fire_sev21)
-
-## 1-10 years prior to the sampling date for init occupancy
-fire_sev21 <- fire_sev21$FireSeverity
-
-# ## Now we need the fire data for the year proceeding each subsequent year
-# ## Testing the validity of supplying the same arus for all 4 years
-# locs.fire <- st_read(here("Data/Spatial_Data/ARU_Locs_2021_2024.shp"))
-# 
-# cbi2123 <- rast("c:/Users/srk252/Documents/GIS_Data/CBI_Sierra/CBI_1985_2024_ZeroFilling_Stack.tif") 
-# cbi2123 <- cbi2123[[names(cbi2123) %in% c(2020:2023)]]
-# 
-# locs.fire <- locs.fire |> st_transform(crs = crs(cbi2123)) |> st_buffer(dist = units::set_units(120, "m"))
-# 
-# fire_sev_annu <- exact_extract(cbi2123, locs.fire, fun = "mean")
-
-
-## Write the robject
-saveRDS(fire_sev21, file = here("./Data/Fire_ARU_21_24_AllUnitsByYears.RDS"))
-
-
-## Histogram for the fire severity
-nrow(fire_sev21$FireSeverity)
-hist(fire_sev21$FireSeverity$Fire_Sev_mean_2016_2020)
-hist(fire_sev21$FireSeverity$Fire_Sev_mean_2011_2015)
-hist(fire_sev21$FireSeverity$Fire_Sev_mean_1986_2010)
-
-## Bring in the dataframe from the ARU stuff
-aru_meta <- read.csv(here("./Data/ARU_120m_New.csv")) |> 
-  mutate(deployment_name = paste(group_id, visit_id, cell_id, unit_numbe, sep = "_"))
-
-aru_meta <- aru_meta |> 
-  filter(deployment_name %in% fire_sev21$FireSeverity$deployment_name) |> 
-  left_join(fire_sev21$FireSeverity)
-
-write.csv(fire_sev21, file = here("./Data/FireSeverity2021_MeanStDev_AllARUs.csv"))
-
-
+## Save the R object for later
+saveRDS(fire_sev21, file = here("Data/FireMets_ARU_21_25_AllUnitsByYears.RDS"))
 
 
 
