@@ -1713,6 +1713,1054 @@ DCMCatVertFP <- nimbleCode({
 ##
 ## -------------------------------------------------------------
 
+## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+##
+## Subsection: DCM Categorical Vertical structure w/ validation
+##
+## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+## ***********************************************************
+##
+## Section Notes:
+## To-Do:
+## 1. Add indicator matrix sampled[i,t] with 1s and 0s to skip
+## unsampled transitions
+## 2. More constants to aggregate on the closed portion
+## - n_visits: for the model to take all reps for each site x year combination
+## - visit_indices: for the model to match the ragged array with the wide format here
+## ***********************************************************
+
+DCMCatVertFPVal <- nimbleCode({
+  
+  ##----------------------
+  ## Species-level priors
+  ##----------------------
+  for(k in 1:nspec){
+    ## Occupancy coefficients
+    beta0[k] ~ dnorm(mu.beta0, tau.beta0)
+    beta1[k] ~ dnorm(mu.beta1, tau.beta1)
+    beta2[k] ~ dnorm(mu.beta2, tau.beta2)
+    beta3[k] ~ dnorm(mu.beta3, tau.beta3)
+    beta4[k] ~ dnorm(mu.beta4, tau.beta4)
+    beta5[k] ~ dnorm(mu.beta5, tau.beta5)
+    beta6[k] ~ dnorm(mu.beta6, tau.beta6)
+    
+    ## Detection coefficients
+    alpha0[k] ~ dnorm(mu.alpha0, tau.alpha0)
+    alpha1[k] ~ dnorm(mu.alpha1, tau.alpha1)
+    alpha2[k] ~ dnorm(mu.alpha2, tau.alpha2)
+    alpha3[k] ~ dnorm(mu.alpha3, tau.alpha3)
+    alpha4[k] ~ dnorm(mu.alpha4, tau.alpha4)
+    
+    ## Persistence coefficients
+    eps0[k] ~ dnorm(mu.eps0, tau.eps0)
+    eps1[k] ~ dnorm(mu.eps1, tau.eps1)
+    eps2[k] ~ dnorm(mu.eps2, tau.eps2)
+    eps3[k] ~ dnorm(mu.eps3, tau.eps3)
+    eps4[k] ~ dnorm(mu.eps4, tau.eps4)
+    eps5[k] ~ dnorm(mu.eps5, tau.eps5)
+    eps6[k] ~ dnorm(mu.eps6, tau.eps6)
+    eps7[k] ~ dnorm(mu.eps7, tau.eps7)
+    eps8[k] ~ dnorm(mu.eps8, tau.eps8)
+    eps9[k] ~ dnorm(mu.eps9, tau.eps9)
+    eps10[k] ~ dnorm(mu.eps10, tau.eps10)
+    eps11[k] ~ dnorm(mu.eps11, tau.eps11)
+    
+    ## Colonization coefficients
+    gamma0[k] ~ dnorm(mu.gamma0, tau.gamma0)
+    gamma1[k] ~ dnorm(mu.gamma1, tau.gamma1)
+    gamma2[k] ~ dnorm(mu.gamma2, tau.gamma2)
+    gamma3[k] ~ dnorm(mu.gamma3, tau.gamma3)
+    gamma4[k] ~ dnorm(mu.gamma4, tau.gamma4)
+    gamma5[k] ~ dnorm(mu.gamma5, tau.gamma5)
+    gamma6[k] ~ dnorm(mu.gamma6, tau.gamma6)
+    gamma7[k] ~ dnorm(mu.gamma7, tau.gamma7)
+    gamma8[k] ~ dnorm(mu.gamma8, tau.gamma8)
+    gamma9[k] ~ dnorm(mu.gamma9, tau.gamma9)
+    gamma10[k] ~ dnorm(mu.gamma10, tau.gamma10)
+    gamma11[k] ~ dnorm(mu.gamma11, tau.gamma11)
+  }
+  
+  ## Cell-level raneff
+  for(c in 1:n_cells){
+    cell_det[c] ~ dnorm(0, tau.cell_det)
+  }
+  sd.cell_det ~ dunif(0, 2)
+  tau.cell_det <- pow(sd.cell_det, -2)
+  
+  ## False-positive Priors
+  for(k in 1:nspec){
+    alphaFP[k] ~ dnorm(-2.944, 4)
+  }
+  
+  ##----------------------
+  ## Hyperpriors
+  ##----------------------
+  ## Occupancy hyperpriors
+  mu.beta0 ~ dnorm(0, 0.01)
+  sd.beta0 ~ dunif(0, 2)
+  tau.beta0 <- pow(sd.beta0, -2)
+  
+  mu.beta1 ~ dnorm(0, 0.01)
+  sd.beta1 ~ dunif(0, 2)
+  tau.beta1 <- pow(sd.beta1, -2)
+  
+  mu.beta2 ~ dnorm(0, 0.01)
+  sd.beta2 ~ dunif(0, 2)
+  tau.beta2 <- pow(sd.beta2, -2)
+  
+  mu.beta3 ~ dnorm(0, 0.01)
+  sd.beta3 ~ dunif(0, 2)
+  tau.beta3 <- pow(sd.beta3, -2)
+  
+  mu.beta4 ~ dnorm(0, 0.01)
+  sd.beta4 ~ dunif(0, 2)
+  tau.beta4 <- pow(sd.beta4, -2)
+  
+  mu.beta5 ~ dnorm(0, 0.01)
+  sd.beta5 ~ dunif(0, 2)
+  tau.beta5 <- pow(sd.beta5, -2)
+  
+  mu.beta6 ~ dnorm(0, 0.01)
+  sd.beta6 ~ dunif(0, 2)
+  tau.beta6 <- pow(sd.beta6, -2)
+  
+  ## Detection hyperpriors
+  mu.alpha0 ~ dnorm(0, 0.01)
+  sd.alpha0 ~ dunif(0, 2)
+  tau.alpha0 <- pow(sd.alpha0, -2)
+  
+  mu.alpha1 ~ dnorm(0, 0.01)
+  sd.alpha1 ~ dunif(0, 2)
+  tau.alpha1 <- pow(sd.alpha1, -2)
+  
+  mu.alpha2 ~ dnorm(0, 0.01)
+  sd.alpha2 ~ dunif(0, 2)
+  tau.alpha2 <- pow(sd.alpha2, -2)
+  
+  mu.alpha3 ~ dnorm(0, 0.01)
+  sd.alpha3 ~ dunif(0, 2)
+  tau.alpha3 <- pow(sd.alpha3, -2)
+  
+  mu.alpha4 ~ dnorm(0, 0.01)
+  sd.alpha4 ~ dunif(0, 2)
+  tau.alpha4 <- pow(sd.alpha4, -2)
+  
+  ## Persistence hyperpriors
+  mu.eps0 ~ dnorm(0, 0.01)
+  sd.eps0 ~ dunif(0, 2)
+  tau.eps0 <- pow(sd.eps0, -2)
+  
+  mu.eps1 ~ dnorm(0, 0.01)
+  sd.eps1 ~ dunif(0, 2)
+  tau.eps1 <- pow(sd.eps1, -2)
+  
+  mu.eps2 ~ dnorm(0, 0.01)
+  sd.eps2 ~ dunif(0, 2)
+  tau.eps2 <- pow(sd.eps2, -2)
+  
+  mu.eps3 ~ dnorm(0, 0.01)
+  sd.eps3 ~ dunif(0, 2)
+  tau.eps3 <- pow(sd.eps3, -2)
+  
+  mu.eps4 ~ dnorm(0, 0.01)
+  sd.eps4 ~ dunif(0, 2)
+  tau.eps4 <- pow(sd.eps4, -2)
+  
+  mu.eps5 ~ dnorm(0, 0.01)
+  sd.eps5 ~ dunif(0, 2)
+  tau.eps5 <- pow(sd.eps5, -2)
+  
+  mu.eps6 ~ dnorm(0, 0.01)
+  sd.eps6 ~ dunif(0, 2)
+  tau.eps6 <- pow(sd.eps6, -2)
+  
+  mu.eps7 ~ dnorm(0, 0.01)
+  sd.eps7 ~ dunif(0, 2)
+  tau.eps7 <- pow(sd.eps7, -2)
+  
+  mu.eps8 ~ dnorm(0, 0.01)
+  sd.eps8 ~ dunif(0, 2)
+  tau.eps8 <- pow(sd.eps8, -2)
+  
+  mu.eps9 ~ dnorm(0, 0.01)
+  sd.eps9 ~ dunif(0, 2)
+  tau.eps9 <- pow(sd.eps9, -2)
+  
+  mu.eps10 ~ dnorm(0, 0.01)
+  sd.eps10 ~ dunif(0, 2)
+  tau.eps10 <- pow(sd.eps10, -2)
+  
+  mu.eps11 ~ dnorm(0, 0.01)
+  sd.eps11 ~ dunif(0, 2)
+  tau.eps11 <- pow(sd.eps11, -2)
+  
+  ## Colonization hyperpriors
+  mu.gamma0 ~ dnorm(0, 0.01)
+  sd.gamma0 ~ dunif(0, 2)
+  tau.gamma0 <- pow(sd.gamma0, -2)
+  
+  mu.gamma1 ~ dnorm(0, 0.01)
+  sd.gamma1 ~ dunif(0, 2)
+  tau.gamma1 <- pow(sd.gamma1, -2)
+  
+  mu.gamma2 ~ dnorm(0, 0.01)
+  sd.gamma2 ~ dunif(0, 2)
+  tau.gamma2 <- pow(sd.gamma2, -2)
+  
+  mu.gamma3 ~ dnorm(0, 0.01)
+  sd.gamma3 ~ dunif(0, 2)
+  tau.gamma3 <- pow(sd.gamma3, -2)
+  
+  mu.gamma4 ~ dnorm(0, 0.01)
+  sd.gamma4 ~ dunif(0, 2)
+  tau.gamma4 <- pow(sd.gamma4, -2)
+  
+  mu.gamma5 ~ dnorm(0, 0.01)
+  sd.gamma5 ~ dunif(0, 2)
+  tau.gamma5 <- pow(sd.gamma5, -2)
+  
+  mu.gamma6 ~ dnorm(0, 0.01)
+  sd.gamma6 ~ dunif(0, 2)
+  tau.gamma6 <- pow(sd.gamma6, -2)
+  
+  mu.gamma7 ~ dnorm(0, 0.01)
+  sd.gamma7 ~ dunif(0, 2)
+  tau.gamma7 <- pow(sd.gamma7, -2)
+  
+  mu.gamma8 ~ dnorm(0, 0.01)
+  sd.gamma8 ~ dunif(0, 2)
+  tau.gamma8 <- pow(sd.gamma8, -2)
+  
+  mu.gamma9 ~ dnorm(0, 0.01)
+  sd.gamma9 ~ dunif(0, 2)
+  tau.gamma9 <- pow(sd.gamma9, -2)
+  
+  mu.gamma10 ~ dnorm(0, 0.01)
+  sd.gamma10 ~ dunif(0, 2)
+  tau.gamma10 <- pow(sd.gamma10, -2)
+  
+  mu.gamma11 ~ dnorm(0, 0.01)
+  sd.gamma11 ~ dunif(0, 2)
+  tau.gamma11 <- pow(sd.gamma11, -2)
+  
+  ##----------------------
+  ## Ecological State Process
+  ##----------------------
+  for(k in 1:nspec){
+    for(i in 1:nsites){
+      
+      ## Initial occupancy
+      logit(psi1[i,k]) <- beta0[k] + 
+        beta1[k] * btemp[i] +
+        beta2[k] * bprec[i] +
+        beta3[k] * cc[i] +
+        beta4[k] * trendt[i] +
+        beta5[k] * trendtmin[i] +
+        beta6[k] * trendp[i]
+      
+      z[i,1,k] ~ dbern(psi1[i,k])
+      psi[i,1,k] <- psi1[i,k]
+      
+      ## State process over years
+      for(t in 2:nyears){
+        ## Colonization
+        logit(gamma[i,t-1,k]) <- gamma0[k] +
+          gamma1[k] * tanom[i, t-1] +
+          gamma2[k] * panom[i,t-1] +
+          gamma3[k] * fire[i, t-1, 1] +
+          gamma4[k] * fire[i,t-1,2] +
+          gamma5[k] * tanom[i,t-1] * fire[i,t-1,1] +
+          gamma6[k] * tanom[i,t-1] * fire[i,t-1,2] +
+          gamma7[k] * panom[i,t-1] * fire[i,t-1,1] +
+          gamma8[k] * panom[i,t-1] * fire[i,t-1,2] +
+          gamma9[k] * trendt[i] + 
+          gamma10[k] * trendtmin[i] +
+          gamma11[k] * trendp[i]
+        
+        ## Persistence
+        logit(eps[i,t-1,k]) <- eps0[k] +
+          eps1[k] * tanom[i,t-1] +
+          eps2[k] * panom[i,t-1] +
+          eps3[k] * fire[i,t-1,1] +
+          eps4[k] * fire[i,t-1,2] +
+          eps5[k] * tanom[i,t-1] * fire[i,t-1,1] +
+          eps6[k] * tanom[i,t-1] * fire[i,t-1,2] +
+          eps7[k] * panom[i,t-1] * fire[i,t-1,1] +
+          eps8[k] * panom[i,t-1] * fire[i,t-1,2] +
+          eps9[k] * trendt[i] +
+          eps10[k] * trendtmin[i] +
+          eps11[k] * trendp[i]
+        
+        ## Latent state
+        z[i,t,k] ~ dbern(z[i,t-1,k] * (1-eps[i,t-1,k]) +
+                           (1-z[i,t-1,k]) * gamma[i,t-1,k])
+        
+        ## Derived psi
+        psi[i,t,k] <- psi[i,t-1,k] * (1-eps[i,t-1,k]) +
+          (1-psi[i,t-1,k]) * gamma[i,t-1,k]
+      }
+    }
+  }
+  
+  ## Obs sub-model ragged
+  for(v in 1:nObs) {
+    for(k in 1:nspec) {
+      logit(p_obs[v,k]) <- alpha0[k] +
+        alpha1[k] * eff.hrs[v] +
+        alpha2[k] * eff.jday[v] + 
+        alpha3[k] * eff.jday2[v] +
+        alpha4[k] * ele[site_obs[v]] + 
+        cell_det[cell_id[site_obs[v]]]
+      
+      y[v,k] ~ dbern(z[site_obs[v], year_obs[v], k] * p_obs[v,k] +
+                       (1 - z[site_obs[v], year_obs[v], k]) * ilogit(alphaFP[k]))
+    }
+  }
+  
+  ##----------------------
+  ## PPC
+  ##----------------------
+  ## Based on Kery and Royle AHM V2 (4.8.2)
+  ## 1. Compute the observed presence/absence matrix zobs for each site and year
+  ## 2. Identify the four possible transitions and count them for obs and rep
+  ## 3. Compute the expected number of transitions for each interval
+  ## 4. Computer Chi-square/Tukey-Freeman between the expected number of transitions
+  ## for both obs and rep. Add a small e (0.001) to deal with division by 0.
+  ## 5. Add up the Chi-suard discrepancies over all transitions and years
+  ## 6. For closed part. Compute detection frequencies (# of times a species detected
+  ## per site per year (season)).
+  
+  ## Add an indicator variable to only count the transitions between subsequently
+  ## sampled years...lots of imputation in the model to fill missing site x year
+  ## combinations
+  ## Some variable sampled[i,t] and conditional if(sampled[i,t] == 1 & sampled[i,t+1] == 1)
+  ## needed to ensure the actual transition states are being accounted for rather than
+  ## potential noise from imputation
+  
+  ## Open part of the model
+  for(k in 1:nspec){
+    for(t in 1:(nyears - 1)){
+      
+      ## Initial counts
+      n00_obs[t,k] <- 0
+      n01_obs[t,k] <- 0
+      n10_obs[t,k] <- 0
+      n11_obs[t,k] <- 0
+      
+      n00_rep[t,k] <- 0
+      n01_rep[t,k] <- 0
+      n10_rep[t,k] <- 0
+      n11_rep[t,k] <- 0
+      
+      ## Loop the sites
+      for(i in 1:nsites){
+        ## Transitions states
+        ## Absent -> Absent
+        n00_obs[t,k] <- n00_obs[t,k] + equals(z[i,t,k],0) * equals(z[i,t,k],0)
+        ## Colonization
+        n01_obs[t,k] <- n01_obs[t,k] + equals(z[i,t,k],0) * equals(z[i,t,k],1)
+        ## Extinction
+        n10_obs[t,k] <- n10_obs[t,k] + equals(z[i,t,k],1) * equals(z[i,t,k],0)
+        ## Present -> Present
+        n11_obs[t,k] <- n11_obs[t,k] + equals(z[i,t,k],1) * equals(z[i,t,k],1)
+        
+        ## Replicate
+        z_rep[i,t,k] ~ dbern(psi[i,t,k])
+        z_rep[i,t+1,k] ~ dbern(psi[i,t+1,k])
+        
+        ## Count from replicates
+        n00_rep[t,k] <- n00_rep[t,k] + equals(z_rep[i,t,k],0) * equals(z_rep[i,t,k],0)
+        ## Colonization
+        n01_rep[t,k] <- n01_rep[t,k] + equals(z_rep[i,t,k],0) * equals(z_rep[i,t,k],1)
+        ## Extinction
+        n10_rep[t,k] <- n10_rep[t,k] + equals(z_rep[i,t,k],1) * equals(z_rep[i,t,k],0)
+        ## Present -> Present
+        n11_rep[t,k] <- n11_rep[t,k] + equals(z_rep[i,t,k],1) * equals(z_rep[i,t,k],1)
+      }
+      
+      ## Expectation for the counts based on model params
+      exp00[t,k] <- sum((1-psi[1:nsites,t,k]) * (1-gamma[1:nsites,t,k]))
+      exp01[t,k] <- sum((1-psi[1:nsites,t,k]) * gamma[1:nsites,t,k])
+      exp10[t,k] <- sum(psi[1:nsites,t,k] * eps[1:nsites,t,k])
+      exp11[t,k] <- sum(psi[1:nsites,t,k] * (1 - eps[1:nsites,t,k]))
+      
+      ## Discrepancy metrics
+      chisq_open_obs[t,k] <- pow(n00_obs[t,k] - exp00[t,k], 2) / (exp00[t,k] + 0.001) +
+        pow(n01_obs[t,k] - exp01[t,k], 2) / (exp01[t,k] + 0.001) +
+        pow(n10_obs[t,k] - exp10[t,k], 2) / (exp10[t,k] + 0.001) +
+        pow(n11_obs[t,k] - exp11[t,k], 2) / (exp11[t,k] + 0.001)
+      
+      chisq_open_rep[t,k] <- pow(n00_rep[t,k] - exp00[t,k], 2) / (exp00[t,k] + 0.001) +
+        pow(n01_rep[t,k] - exp01[t,k], 2) / (exp01[t,k] + 0.001) +
+        pow(n10_rep[t,k] - exp10[t,k], 2) / (exp10[t,k] + 0.001) +
+        pow(n11_rep[t,k] - exp11[t,k], 2) / (exp11[t,k] + 0.001)
+    }
+  }
+  
+  ## Take the sum
+  chi_open_obs <- sum(chisq_open_obs[1:(nyears-1), 1:nspec])
+  chi_open_rep <- sum(chisq_open_rep[1:(nyears-1), 1:nspec])
+  ## Use step to comparise 
+  fit_open <- step(chi_open_rep - chi_open_obs)
+  
+  
+  ## Closed part of the model ("occupancy" state in the year)
+  for(i in 1:nsites) {
+    for(t in 1:nyears) {
+      for(k in 1:nspec) {
+        
+        ## Initialise sums
+        y_sum[i,t,k] <- 0
+        yrep_sum[i,t,k] <- 0
+        exp_closed[i,t,k] <- 0
+        
+        ## Sum visits for site-year using mapping constants
+        for(r in 1:n_visits[i,t]) {
+          v_id <- visit_indices[i,t,r]
+          
+          ## Detection probability for this visit/species
+          p_mix[v_id,k] <- z[i,t,k] * p_obs[v_id,k] +
+            (1 - z[i,t,k]) * ilogit(alphaFP[k])
+          ## Replicate detection
+          y_rep[v_id,k] ~ dbern(p_mix[v_id,k])
+          
+          ## Accumulate counts
+          y_sum[i,t,k] <- y_sum[i,t,k] + y[v_id,k]
+          yrep_sum[i,t,k] <- yrep_sum[i,t,k] + y_rep[v_id,k]
+          exp_closed[i,t,k] <- exp_closed[i,t,k] + p_mix[v_id,k]
+        }
+        
+        ## Chi-sq discrepancy for closed part
+        chisq_closed_obs[i,t,k] <- pow(y_sum[i,t,k] - exp_closed[i,t,k], 2) /
+          (exp_closed[i,t,k] + 0.001)
+        chisq_closed_rep[i,t,k] <- pow(yrep_sum[i,t,k] - exp_closed[i,t,k], 2) /
+          (exp_closed[i,t,k] + 0.001)
+        
+        ## Freeman–Tukey discrepancy
+        ft_closed_obs[i,t,k] <- pow(sqrt(y_sum[i,t,k]) - sqrt(exp_closed[i,t,k]), 2)
+        ft_closed_rep[i,t,k] <- pow(sqrt(yrep_sum[i,t,k]) - sqrt(exp_closed[i,t,k]), 2)
+      }
+    }
+  }
+  
+  ## Sum globally
+  chi_closed_obs <- sum(chisq_closed_obs[1:nsites, 1:nyears, 1:nspec])
+  chi_closed_rep <- sum(chisq_closed_rep[1:nsites, 1:nyears, 1:nspec])
+  fit_closed <- step(chi_closed_rep - chi_closed_obs)
+  
+  ft_closed_obs_sum <- sum(ft_closed_obs[1:nsites, 1:nyears, 1:nspec])
+  ft_closed_rep_sum <- sum(ft_closed_rep[1:nsites, 1:nyears, 1:nspec])
+  fit_closed_ft <- step(ft_closed_rep_sum - ft_closed_obs_sum)
+  
+  ##----------------------
+  ## Derived parameters
+  ##----------------------
+  for(k in 1:nspec){
+    for(i in 1:nsites){
+      for(t in 1:(nyears-1)){
+        phi[i,t,k] <- 1 - eps[i,t,k]
+      }
+    }
+  }
+  
+  ## Mean occupancy per species
+  for(k in 1:nspec){
+    psi.fs[1,k] <- mean(psi1[1:nsites,k])
+    for(t in 2:nyears){
+      psi.fs[t,k] <- mean(z[1:nsites,t,k])
+    }
+  }
+  
+  ## Mean richness
+  for(i in 1:nsites){
+    for(t in 1:nyears){
+      richness[i,t] <- sum(z[i,t,1:nspec])
+    }
+  }
+  
+  ## FP Rate
+  for(k in 1:nspec){
+    fp_rate[k] <- ilogit(alphaFP[k])
+  }
+  
+})
+
+## -------------------------------------------------------------
+##
+## End Section: Model Code
+##
+## -------------------------------------------------------------
+
+## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+##
+## Subsection: DCM Categorical Vertical structure w/ validation
+##
+## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+## ***********************************************************
+##
+## Section Notes:
+## To-Do:
+## 1. Add indicator matrix sampled[i,t] with 1s and 0s to skip
+## unsampled transitions
+## 2. More constants to aggregate on the closed portion
+## - n_visits: for the model to take all reps for each site x year combination
+## - visit_indices: for the model to match the ragged array with the wide format here
+## 3. Add species-level information for HWI and body mass
+## ***********************************************************
+
+DCMTraits <- nimbleCode({
+  
+  ##----------------------
+  ## Species-level priors
+  ##----------------------
+  for(k in 1:nspec){
+    ## Occupancy coefficients
+    beta0[k] ~ dnorm(mu.beta0, tau.beta0)
+    beta1[k] ~ dnorm(mu.beta1, tau.beta1)
+    beta2[k] ~ dnorm(mu.beta2, tau.beta2)
+    beta3[k] ~ dnorm(mu.beta3, tau.beta3)
+    beta4[k] ~ dnorm(mu.beta4, tau.beta4)
+    beta5[k] ~ dnorm(mu.beta5, tau.beta5)
+    beta6[k] ~ dnorm(mu.beta6, tau.beta6)
+    
+    ## Detection coefficients
+    alpha0[k] ~ dnorm(mu.alpha0, tau.alpha0)
+    alpha1[k] ~ dnorm(mu.alpha1, tau.alpha1)
+    alpha2[k] ~ dnorm(mu.alpha2, tau.alpha2)
+    alpha3[k] ~ dnorm(mu.alpha3, tau.alpha3)
+    alpha4[k] ~ dnorm(mu.alpha4, tau.alpha4)
+    
+    ## Persistence coefficients
+    eps0[k] ~ dnorm(mu.eps0, tau.eps0)
+    eps1[k] ~ dnorm(mu.eps1, tau.eps1)
+    eps2[k] ~ dnorm(mu.eps2, tau.eps2)
+    eps3[k] ~ dnorm(mu.eps3, tau.eps3)
+    eps4[k] ~ dnorm(mu.eps4, tau.eps4)
+    eps5[k] ~ dnorm(mu.eps5, tau.eps5)
+    eps6[k] ~ dnorm(mu.eps6, tau.eps6)
+    eps7[k] ~ dnorm(mu.eps7, tau.eps7)
+    eps8[k] ~ dnorm(mu.eps8, tau.eps8)
+    eps9[k] ~ dnorm(mu.eps9, tau.eps9)
+    eps10[k] ~ dnorm(mu.eps10, tau.eps10)
+    eps11[k] ~ dnorm(mu.eps11, tau.eps11)
+    
+    ## Colonization coefficients
+    gamma0[k] ~ dnorm(mu.gamma0[k], tau.gamma0)
+    gamma1[k] ~ dnorm(mu.gamma1[k], tau.gamma1)
+    gamma2[k] ~ dnorm(mu.gamma2[k], tau.gamma2)
+    gamma3[k] ~ dnorm(mu.gamma3[k], tau.gamma3)
+    gamma4[k] ~ dnorm(mu.gamma4[k], tau.gamma4)
+    gamma5[k] ~ dnorm(mu.gamma5[k], tau.gamma5)
+    gamma6[k] ~ dnorm(mu.gamma6[k], tau.gamma6)
+    gamma7[k] ~ dnorm(mu.gamma7[k], tau.gamma7)
+    gamma8[k] ~ dnorm(mu.gamma8[k], tau.gamma8)
+    gamma9[k] ~ dnorm(mu.gamma9[k], tau.gamma9)
+    gamma10[k] ~ dnorm(mu.gamma10[k], tau.gamma10)
+    gamma11[k] ~ dnorm(mu.gamma11[k], tau.gamma11)
+    
+    ## Trait-based models of species effects
+    ## Colonization
+    mu.gamma0[k] <- delta0.gamma0 + 
+      delta1.gamma0 * mass[k] + 
+      delta2.gamma0 * hwi[k]
+    
+    mu.gamma1[k] <- delta0.gamma1 + 
+      delta1.gamma1 * mass[k] + 
+      delta2.gamma1 * hwi[k]
+    
+    mu.gamma2[k] <- delta0.gamma2 + 
+      delta1.gamma2 * mass[k] + 
+      delta2.gamma2 * hwi[k]
+    
+    mu.gamma3[k] <- delta0.gamma3 + 
+      delta1.gamma3 * mass[k] + 
+      delta2.gamma3 * hwi[k]
+    
+    mu.gamma4[k] <- delta0.gamma4 + 
+      delta1.gamma4 * mass[k] + 
+      delta2.gamma4 * hwi[k]
+    
+    mu.gamma5[k] <- delta0.gamma5 + 
+      delta1.gamma5 * mass[k] + 
+      delta2.gamma5 * hwi[k]
+    
+    mu.gamma6[k] <- delta0.gamma6 + 
+      delta1.gamma6 * mass[k] + 
+      delta2.gamma3 * hwi[k]
+    
+    mu.gamma7[k] <- delta0.gamma7 + 
+      delta1.gamma7 * mass[k] + 
+      delta2.gamma7 * hwi[k]
+    
+    mu.gamma8[k] <- delta0.gamma8 + 
+      delta1.gamma8 * mass[k] + 
+      delta2.gamma8 * hwi[k]
+    
+    mu.gamma9[k] <- delta0.gamma9 + 
+      delta1.gamma9 * mass[k] + 
+      delta2.gamma9 * hwi[k]
+    
+    mu.gamma10[k] <- delta0.gamma10 + 
+      delta1.gamma10 * mass[k] + 
+      delta2.gamma10 * hwi[k]
+    
+    mu.gamma11[k] <- delta0.gamma11 + 
+      delta1.gamma1 * mass[k] + 
+      delta2.gamma11 * hwi[k]
+  }
+  
+  ## Cell-level raneff
+  for(c in 1:n_cells){
+    cell_det[c] ~ dnorm(0, tau.cell_det)
+  }
+  sd.cell_det ~ dunif(0, 2)
+  tau.cell_det <- pow(sd.cell_det, -2)
+  
+  ## False-positive Priors
+  for(k in 1:nspec){
+    alphaFP[k] ~ dnorm(-2.944, 4)
+  }
+  
+  ##----------------------
+  ## Hyperpriors
+  ##----------------------
+  ## Occupancy hyperpriors
+  mu.beta0 ~ dnorm(0, 0.01)
+  sd.beta0 ~ dunif(0, 2)
+  tau.beta0 <- pow(sd.beta0, -2)
+  
+  mu.beta1 ~ dnorm(0, 0.01)
+  sd.beta1 ~ dunif(0, 2)
+  tau.beta1 <- pow(sd.beta1, -2)
+  
+  mu.beta2 ~ dnorm(0, 0.01)
+  sd.beta2 ~ dunif(0, 2)
+  tau.beta2 <- pow(sd.beta2, -2)
+  
+  mu.beta3 ~ dnorm(0, 0.01)
+  sd.beta3 ~ dunif(0, 2)
+  tau.beta3 <- pow(sd.beta3, -2)
+  
+  mu.beta4 ~ dnorm(0, 0.01)
+  sd.beta4 ~ dunif(0, 2)
+  tau.beta4 <- pow(sd.beta4, -2)
+  
+  mu.beta5 ~ dnorm(0, 0.01)
+  sd.beta5 ~ dunif(0, 2)
+  tau.beta5 <- pow(sd.beta5, -2)
+  
+  mu.beta6 ~ dnorm(0, 0.01)
+  sd.beta6 ~ dunif(0, 2)
+  tau.beta6 <- pow(sd.beta6, -2)
+  
+  ## Detection hyperpriors
+  mu.alpha0 ~ dnorm(0, 0.01)
+  sd.alpha0 ~ dunif(0, 2)
+  tau.alpha0 <- pow(sd.alpha0, -2)
+  
+  mu.alpha1 ~ dnorm(0, 0.01)
+  sd.alpha1 ~ dunif(0, 2)
+  tau.alpha1 <- pow(sd.alpha1, -2)
+  
+  mu.alpha2 ~ dnorm(0, 0.01)
+  sd.alpha2 ~ dunif(0, 2)
+  tau.alpha2 <- pow(sd.alpha2, -2)
+  
+  mu.alpha3 ~ dnorm(0, 0.01)
+  sd.alpha3 ~ dunif(0, 2)
+  tau.alpha3 <- pow(sd.alpha3, -2)
+  
+  mu.alpha4 ~ dnorm(0, 0.01)
+  sd.alpha4 ~ dunif(0, 2)
+  tau.alpha4 <- pow(sd.alpha4, -2)
+  
+  ## Persistence hyperpriors
+  mu.eps0 ~ dnorm(0, 0.01)
+  sd.eps0 ~ dunif(0, 2)
+  tau.eps0 <- pow(sd.eps0, -2)
+  
+  mu.eps1 ~ dnorm(0, 0.01)
+  sd.eps1 ~ dunif(0, 2)
+  tau.eps1 <- pow(sd.eps1, -2)
+  
+  mu.eps2 ~ dnorm(0, 0.01)
+  sd.eps2 ~ dunif(0, 2)
+  tau.eps2 <- pow(sd.eps2, -2)
+  
+  mu.eps3 ~ dnorm(0, 0.01)
+  sd.eps3 ~ dunif(0, 2)
+  tau.eps3 <- pow(sd.eps3, -2)
+  
+  mu.eps4 ~ dnorm(0, 0.01)
+  sd.eps4 ~ dunif(0, 2)
+  tau.eps4 <- pow(sd.eps4, -2)
+  
+  mu.eps5 ~ dnorm(0, 0.01)
+  sd.eps5 ~ dunif(0, 2)
+  tau.eps5 <- pow(sd.eps5, -2)
+  
+  mu.eps6 ~ dnorm(0, 0.01)
+  sd.eps6 ~ dunif(0, 2)
+  tau.eps6 <- pow(sd.eps6, -2)
+  
+  mu.eps7 ~ dnorm(0, 0.01)
+  sd.eps7 ~ dunif(0, 2)
+  tau.eps7 <- pow(sd.eps7, -2)
+  
+  mu.eps8 ~ dnorm(0, 0.01)
+  sd.eps8 ~ dunif(0, 2)
+  tau.eps8 <- pow(sd.eps8, -2)
+  
+  mu.eps9 ~ dnorm(0, 0.01)
+  sd.eps9 ~ dunif(0, 2)
+  tau.eps9 <- pow(sd.eps9, -2)
+  
+  mu.eps10 ~ dnorm(0, 0.01)
+  sd.eps10 ~ dunif(0, 2)
+  tau.eps10 <- pow(sd.eps10, -2)
+  
+  mu.eps11 ~ dnorm(0, 0.01)
+  sd.eps11 ~ dunif(0, 2)
+  tau.eps11 <- pow(sd.eps11, -2)
+  
+  ## Colonization hyperpriors
+  mu.gamma0 ~ dnorm(0, 0.01)
+  sd.gamma0 ~ dunif(0, 2)
+  tau.gamma0 <- pow(sd.gamma0, -2)
+  
+  mu.gamma1 ~ dnorm(0, 0.01)
+  sd.gamma1 ~ dunif(0, 2)
+  tau.gamma1 <- pow(sd.gamma1, -2)
+  
+  mu.gamma2 ~ dnorm(0, 0.01)
+  sd.gamma2 ~ dunif(0, 2)
+  tau.gamma2 <- pow(sd.gamma2, -2)
+  
+  ## Replaced below with mean trait response
+  #mu.gamma3 ~ dnorm(0, 0.01)
+  sd.gamma3 ~ dunif(0, 2)
+  tau.gamma3 <- pow(sd.gamma3, -2)
+  
+  mu.gamma4 ~ dnorm(0, 0.01)
+  sd.gamma4 ~ dunif(0, 2)
+  tau.gamma4 <- pow(sd.gamma4, -2)
+  
+  mu.gamma5 ~ dnorm(0, 0.01)
+  sd.gamma5 ~ dunif(0, 2)
+  tau.gamma5 <- pow(sd.gamma5, -2)
+  
+  mu.gamma6 ~ dnorm(0, 0.01)
+  sd.gamma6 ~ dunif(0, 2)
+  tau.gamma6 <- pow(sd.gamma6, -2)
+  
+  mu.gamma7 ~ dnorm(0, 0.01)
+  sd.gamma7 ~ dunif(0, 2)
+  tau.gamma7 <- pow(sd.gamma7, -2)
+  
+  mu.gamma8 ~ dnorm(0, 0.01)
+  sd.gamma8 ~ dunif(0, 2)
+  tau.gamma8 <- pow(sd.gamma8, -2)
+  
+  mu.gamma9 ~ dnorm(0, 0.01)
+  sd.gamma9 ~ dunif(0, 2)
+  tau.gamma9 <- pow(sd.gamma9, -2)
+  
+  mu.gamma10 ~ dnorm(0, 0.01)
+  sd.gamma10 ~ dunif(0, 2)
+  tau.gamma10 <- pow(sd.gamma10, -2)
+  
+  mu.gamma11 ~ dnorm(0, 0.01)
+  sd.gamma11 ~ dunif(0, 2)
+  tau.gamma11 <- pow(sd.gamma11, -2)
+  
+  ## Trait-effect priors
+  delta0.gamma0 ~ dnorm(0, 0.01)
+  delta1.gamma0 ~ dnorm(0, 0.01)
+  delta2.gamma0 ~ dnorm(0, 0.01)
+  delta0.gamma1 ~ dnorm(0, 0.01)
+  delta1.gamma1 ~ dnorm(0, 0.01)
+  delta2.gamma1 ~ dnorm(0, 0.01)
+  delta0.gamma2 ~ dnorm(0, 0.01)
+  delta1.gamma2 ~ dnorm(0, 0.01)
+  delta2.gamma2 ~ dnorm(0, 0.01)
+  delta0.gamma3 ~ dnorm(0, 0.01)
+  delta1.gamma3 ~ dnorm(0, 0.01)
+  delta2.gamma3 ~ dnorm(0, 0.01)
+  delta0.gamma4 ~ dnorm(0, 0.01)
+  delta1.gamma4 ~ dnorm(0, 0.01)
+  delta2.gamma4 ~ dnorm(0, 0.01)
+  delta0.gamma5 ~ dnorm(0, 0.01)
+  delta1.gamma5 ~ dnorm(0, 0.01)
+  delta2.gamma5 ~ dnorm(0, 0.01)
+  delta0.gamma6 ~ dnorm(0, 0.01)
+  delta1.gamma6 ~ dnorm(0, 0.01)
+  delta2.gamma6 ~ dnorm(0, 0.01)
+  delta0.gamma7 ~ dnorm(0, 0.01)
+  delta1.gamma7 ~ dnorm(0, 0.01)
+  delta2.gamma7 ~ dnorm(0, 0.01)
+  delta0.gamma8 ~ dnorm(0, 0.01)
+  delta1.gamma8 ~ dnorm(0, 0.01)
+  delta2.gamma8 ~ dnorm(0, 0.01)
+  delta0.gamma9 ~ dnorm(0, 0.01)
+  delta1.gamma9 ~ dnorm(0, 0.01)
+  delta2.gamma9 ~ dnorm(0, 0.01)
+  delta0.gamma10 ~ dnorm(0, 0.01)
+  delta1.gamma10 ~ dnorm(0, 0.01)
+  delta2.gamma10 ~ dnorm(0, 0.01)
+  delta0.gamma11 ~ dnorm(0, 0.01)
+  delta1.gamma11 ~ dnorm(0, 0.01)
+  delta2.gamma11 ~ dnorm(0, 0.01)
+  
+  ##----------------------
+  ## Ecological State Process
+  ##----------------------
+  for(k in 1:nspec){
+    for(i in 1:nsites){
+      
+      ## Initial occupancy
+      logit(psi1[i,k]) <- beta0[k] + 
+        beta1[k] * btemp[i] +
+        beta2[k] * bprec[i] +
+        beta3[k] * cc[i] +
+        beta4[k] * trendt[i] +
+        beta5[k] * trendtmin[i] +
+        beta6[k] * trendp[i]
+      
+      z[i,1,k] ~ dbern(psi1[i,k])
+      psi[i,1,k] <- psi1[i,k]
+      
+      ## State process over years
+      for(t in 2:nyears){
+        ## Colonization
+        logit(gamma[i,t-1,k]) <- gamma0[k] +
+          gamma1[k] * tanom[i, t-1] +
+          gamma2[k] * panom[i,t-1] +
+          gamma3[k] * fire[i, t-1, 1] +
+          gamma4[k] * fire[i,t-1,2] +
+          gamma5[k] * tanom[i,t-1] * fire[i,t-1,1] +
+          gamma6[k] * tanom[i,t-1] * fire[i,t-1,2] +
+          gamma7[k] * panom[i,t-1] * fire[i,t-1,1] +
+          gamma8[k] * panom[i,t-1] * fire[i,t-1,2] +
+          gamma9[k] * trendt[i] + 
+          gamma10[k] * trendtmin[i] +
+          gamma11[k] * trendp[i]
+        
+        ## Persistence
+        logit(eps[i,t-1,k]) <- eps0[k] +
+          eps1[k] * tanom[i,t-1] +
+          eps2[k] * panom[i,t-1] +
+          eps3[k] * fire[i,t-1,1] +
+          eps4[k] * fire[i,t-1,2] +
+          eps5[k] * tanom[i,t-1] * fire[i,t-1,1] +
+          eps6[k] * tanom[i,t-1] * fire[i,t-1,2] +
+          eps7[k] * panom[i,t-1] * fire[i,t-1,1] +
+          eps8[k] * panom[i,t-1] * fire[i,t-1,2] +
+          eps9[k] * trendt[i] +
+          eps10[k] * trendtmin[i] +
+          eps11[k] * trendp[i]
+        
+        ## Latent state
+        z[i,t,k] ~ dbern(z[i,t-1,k] * (1-eps[i,t-1,k]) +
+                           (1-z[i,t-1,k]) * gamma[i,t-1,k])
+        
+        ## Derived psi
+        psi[i,t,k] <- psi[i,t-1,k] * (1-eps[i,t-1,k]) +
+          (1-psi[i,t-1,k]) * gamma[i,t-1,k]
+      }
+    }
+  }
+  
+  ## Obs sub-model ragged
+  for(v in 1:nObs) {
+    for(k in 1:nspec) {
+      logit(p_obs[v,k]) <- alpha0[k] +
+        alpha1[k] * eff.hrs[v] +
+        alpha2[k] * eff.jday[v] + 
+        alpha3[k] * eff.jday2[v] +
+        alpha4[k] * ele[site_obs[v]] + 
+        cell_det[cell_id[site_obs[v]]]
+      
+      y[v,k] ~ dbern(z[site_obs[v], year_obs[v], k] * p_obs[v,k] +
+                       (1 - z[site_obs[v], year_obs[v], k]) * ilogit(alphaFP[k]))
+    }
+  }
+  
+  ##----------------------
+  ## PPC
+  ##----------------------
+  ## Based on Kery and Royle AHM V2 (4.8.2)
+  ## 1. Compute the observed presence/absence matrix zobs for each site and year
+  ## 2. Identify the four possible transitions and count them for obs and rep
+  ## 3. Compute the expected number of transitions for each interval
+  ## 4. Computer Chi-square/Tukey-Freeman between the expected number of transitions
+  ## for both obs and rep. Add a small e (0.001) to deal with division by 0.
+  ## 5. Add up the Chi-suard discrepancies over all transitions and years
+  ## 6. For closed part. Compute detection frequencies (# of times a species detected
+  ## per site per year (season)).
+  
+  ## Add an indicator variable to only count the transitions between subsequently
+  ## sampled years...lots of imputation in the model to fill missing site x year
+  ## combinations
+  ## Some variable sampled[i,t] and conditional if(sampled[i,t] == 1 & sampled[i,t+1] == 1)
+  ## needed to ensure the actual transition states are being accounted for rather than
+  ## potential noise from imputation
+  
+  ## Open part of the model
+  for(k in 1:nspec){
+    for(t in 1:(nyears - 1)){
+      
+      ## Initial counts
+      n00_obs[t,k] <- 0
+      n01_obs[t,k] <- 0
+      n10_obs[t,k] <- 0
+      n11_obs[t,k] <- 0
+      
+      n00_rep[t,k] <- 0
+      n01_rep[t,k] <- 0
+      n10_rep[t,k] <- 0
+      n11_rep[t,k] <- 0
+      
+      ## Loop the sites
+      for(i in 1:nsites){
+        ## Transitions states
+        ## Absent -> Absent
+        n00_obs[t,k] <- n00_obs[t,k] + equals(z[i,t,k],0) * equals(z[i,t,k],0)
+        ## Colonization
+        n01_obs[t,k] <- n01_obs[t,k] + equals(z[i,t,k],0) * equals(z[i,t,k],1)
+        ## Extinction
+        n10_obs[t,k] <- n10_obs[t,k] + equals(z[i,t,k],1) * equals(z[i,t,k],0)
+        ## Present -> Present
+        n11_obs[t,k] <- n11_obs[t,k] + equals(z[i,t,k],1) * equals(z[i,t,k],1)
+        
+        ## Replicate
+        z_rep[i,t,k] ~ dbern(psi[i,t,k])
+        z_rep[i,t+1,k] ~ dbern(psi[i,t+1,k])
+        
+        ## Count from replicates
+        n00_rep[t,k] <- n00_rep[t,k] + equals(z_rep[i,t,k],0) * equals(z_rep[i,t,k],0)
+        ## Colonization
+        n01_rep[t,k] <- n01_rep[t,k] + equals(z_rep[i,t,k],0) * equals(z_rep[i,t,k],1)
+        ## Extinction
+        n10_rep[t,k] <- n10_rep[t,k] + equals(z_rep[i,t,k],1) * equals(z_rep[i,t,k],0)
+        ## Present -> Present
+        n11_rep[t,k] <- n11_rep[t,k] + equals(z_rep[i,t,k],1) * equals(z_rep[i,t,k],1)
+      }
+      
+      ## Expectation for the counts based on model params
+      exp00[t,k] <- sum((1-psi[1:nsites,t,k]) * (1-gamma[1:nsites,t,k]))
+      exp01[t,k] <- sum((1-psi[1:nsites,t,k]) * gamma[1:nsites,t,k])
+      exp10[t,k] <- sum(psi[1:nsites,t,k] * eps[1:nsites,t,k])
+      exp11[t,k] <- sum(psi[1:nsites,t,k] * (1 - eps[1:nsites,t,k]))
+      
+      ## Discrepancy metrics
+      chisq_open_obs[t,k] <- pow(n00_obs[t,k] - exp00[t,k], 2) / (exp00[t,k] + 0.001) +
+        pow(n01_obs[t,k] - exp01[t,k], 2) / (exp01[t,k] + 0.001) +
+        pow(n10_obs[t,k] - exp10[t,k], 2) / (exp10[t,k] + 0.001) +
+        pow(n11_obs[t,k] - exp11[t,k], 2) / (exp11[t,k] + 0.001)
+      
+      chisq_open_rep[t,k] <- pow(n00_rep[t,k] - exp00[t,k], 2) / (exp00[t,k] + 0.001) +
+        pow(n01_rep[t,k] - exp01[t,k], 2) / (exp01[t,k] + 0.001) +
+        pow(n10_rep[t,k] - exp10[t,k], 2) / (exp10[t,k] + 0.001) +
+        pow(n11_rep[t,k] - exp11[t,k], 2) / (exp11[t,k] + 0.001)
+    }
+  }
+  
+  ## Take the sum
+  chi_open_obs <- sum(chisq_open_obs[1:(nyears-1), 1:nspec])
+  chi_open_rep <- sum(chisq_open_rep[1:(nyears-1), 1:nspec])
+  ## Use step to comparise 
+  fit_open <- step(chi_open_rep - chi_open_obs)
+  
+  
+  ## Closed part of the model ("occupancy" state in the year)
+  for(i in 1:nsites) {
+    for(t in 1:nyears) {
+      for(k in 1:nspec) {
+        
+        ## Initialise sums
+        y_sum[i,t,k] <- 0
+        yrep_sum[i,t,k] <- 0
+        exp_closed[i,t,k] <- 0
+        
+        ## Sum visits for site-year using mapping constants
+        for(r in 1:n_visits[i,t]) {
+          v_id <- visit_indices[i,t,r]
+          
+          ## Detection probability for this visit/species
+          p_mix[v_id,k] <- z[i,t,k] * p_obs[v_id,k] +
+            (1 - z[i,t,k]) * ilogit(alphaFP[k])
+          ## Replicate detection
+          y_rep[v_id,k] ~ dbern(p_mix[v_id,k])
+          
+          ## Accumulate counts
+          y_sum[i,t,k] <- y_sum[i,t,k] + y[v_id,k]
+          yrep_sum[i,t,k] <- yrep_sum[i,t,k] + y_rep[v_id,k]
+          exp_closed[i,t,k] <- exp_closed[i,t,k] + p_mix[v_id,k]
+        }
+        
+        ## Chi-sq discrepancy for closed part
+        chisq_closed_obs[i,t,k] <- pow(y_sum[i,t,k] - exp_closed[i,t,k], 2) /
+          (exp_closed[i,t,k] + 0.001)
+        chisq_closed_rep[i,t,k] <- pow(yrep_sum[i,t,k] - exp_closed[i,t,k], 2) /
+          (exp_closed[i,t,k] + 0.001)
+        
+        ## Freeman–Tukey discrepancy
+        ft_closed_obs[i,t,k] <- pow(sqrt(y_sum[i,t,k]) - sqrt(exp_closed[i,t,k]), 2)
+        ft_closed_rep[i,t,k] <- pow(sqrt(yrep_sum[i,t,k]) - sqrt(exp_closed[i,t,k]), 2)
+      }
+    }
+  }
+  
+  ## Sum globally
+  chi_closed_obs <- sum(chisq_closed_obs[1:nsites, 1:nyears, 1:nspec])
+  chi_closed_rep <- sum(chisq_closed_rep[1:nsites, 1:nyears, 1:nspec])
+  fit_closed <- step(chi_closed_rep - chi_closed_obs)
+  
+  ft_closed_obs_sum <- sum(ft_closed_obs[1:nsites, 1:nyears, 1:nspec])
+  ft_closed_rep_sum <- sum(ft_closed_rep[1:nsites, 1:nyears, 1:nspec])
+  fit_closed_ft <- step(ft_closed_rep_sum - ft_closed_obs_sum)
+  
+  ##----------------------
+  ## Derived parameters
+  ##----------------------
+  for(k in 1:nspec){
+    for(i in 1:nsites){
+      for(t in 1:(nyears-1)){
+        phi[i,t,k] <- 1 - eps[i,t,k]
+      }
+    }
+  }
+  
+  ## Mean occupancy per species
+  for(k in 1:nspec){
+    psi.fs[1,k] <- mean(psi1[1:nsites,k])
+    for(t in 2:nyears){
+      psi.fs[t,k] <- mean(z[1:nsites,t,k])
+    }
+  }
+  
+  ## Mean richness
+  for(i in 1:nsites){
+    for(t in 1:nyears){
+      richness[i,t] <- sum(z[i,t,1:nspec])
+    }
+  }
+  
+  ## FP Rate
+  for(k in 1:nspec){
+    fp_rate[k] <- ilogit(alphaFP[k])
+  }
+  
+})
+
+## -------------------------------------------------------------
+##
+## End Section: Model Code
+##
+## -------------------------------------------------------------
+
 ## -------------------------------------------------------------
 ##
 ## Begin Section: Model data and inits 
@@ -1725,7 +2773,9 @@ DCMCatVertFP <- nimbleCode({
 ##
 ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 ## Load data
-bdata <- readRDS(here("Data/Occ_Data/DCM_Ragged_Full.RDS"))  
+#bdata <- readRDS(here("Data/Occ_Data/DCM_Ragged_Full.RDS"))  
+bdata <- readRDS(here("Data/Occ_Data/DCM_Ragged_Full_2021_2025.RDS"))  
+
 str(bdata)
 
 ## Fix predictor scaling
@@ -1967,7 +3017,7 @@ Cmodel <- compileNimble(DCMmodel)
 
 ## Configure model
 conf <- configureMCMC(DCMmodel, monitors = params)
-
+#conf$enableWAIC(TRUE)
 print(conf$getMonitors())
 
 ## Build
@@ -1991,5 +3041,5 @@ samples <- runMCMC(Cmcmc,
                    summary = FALSE)
 
 ## Write to file
-saveRDS(samples, file = "D:/DCM_Samples/DCMmodel_mcmc_output_FP.rds")
+saveRDS(samples, file = "D:/DCM_Samples/DCMmodel_mcmc_output_FP_21_25.rds")
 
