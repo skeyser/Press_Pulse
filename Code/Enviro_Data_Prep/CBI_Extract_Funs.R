@@ -230,39 +230,55 @@ prep_locs <- function(locs_from_cabio,
 ## Subsection: CBI Cleaning Function
 ##
 ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-cbi_clean <- function(cbi_path){
-  if(file.exists(cbi_path)){
+cbi_clean <- function(cbi_path = NULL, cbi_stack_path = NULL, save_path = NULL){
+  
+  if (!is.null(cbi_stack_path) && !file.exists(cbi_stack_path)) {
+    stop("Supplied cbi_stack_path does not exist: ", cbi_stack_path)
+  }
+  if (!is.null(cbi_path) && !dir.exists(cbi_path)) {
+    stop("Supplied cbi_path does not exist: ", cbi_path)
+  }
+  
+  if(!is.null(cbi_stack_path)){
     
     message("CBI rasters are fixed and exist in directory. Loading the fixed stack.")
-    cbi_stack <- rast(cbi_path)
     
-  } else {
+    cbi_stack <- terra::rast(cbi_stack_path)
+    
+  } else if(!is.null(cbi_path)) {
+    
+    message("No CBI stack path supplied. Proceeding with yearly rasters.")
     
     ## Find files
-    cbi_files <- list.files(cbi_path, full.names = T, pattern = "(cbi_cat_)(\\d{4})(*.tif$)")
+    cbi_files <- list.files(cbi_path, 
+                            full.names = T, 
+                            pattern = "(cbi_cat_)(\\d{4})(*.tif$)")
+    
+    if(length(cbi_files) == 0){
+      stop("No files found in ", cbi_path, " matching pattern.")
+    }
     
     ## Call function to stack if need be
     cbi_stack <- cbi_stack_fun(cbi_files)
     
-    ## Add in zeros for the raster for downstream processing
-    temp <- rast(nrows = nrow(cbi_stack[[1]]),
-                 ncols = ncol(cbi_stack[[1]]),
-                 xmin = xmin(cbi_stack[[1]]),
-                 xmax = xmax(cbi_stack[[1]]),
-                 ymin = ymin(cbi_stack[[1]]),
-                 ymax = ymax(cbi_stack[[1]]),
-                 crs = crs(cbi_stack[[1]]),
-                 resolution = res(cbi_stack[[1]]),
-                 vals = 0,
-                 names = "template"
-    )
-    
     ## Reclassify the NAs to zero to fill in the rasters
-    cbi_stack <- classify(cbi_stack, cbind(NA, 0))
+    cbi_stack[is.na(cbi_stack)] <- 0
+    
     if(nlyr(cbi_stack) == length(cbi_files)){
       names(cbi_stack) <- str_extract(cbi_files, "\\d{4}")
     }
+    
+    if(!is.null(save_path)){
+      message("Saving processed stack to: ", save_path)
+      terra::writeRaster(cbi_stack, filename = save_path)
+    }
+    
+  } else { 
+    
+    stop("Both CBI data locations are null! Provide either cbi_stack_path or cbi_path.") 
+  
   }
+  
   return(cbi_stack)
 }
 
@@ -677,6 +693,12 @@ fire_lscp_fun <- function(ras_int,
                                           verbose = FALSE,
                                           progress = T)
       
+      ## Deal with some of the spatial inaccuracies by taking means
+      lsm <- lsm |> 
+        group_by(plot_id, class, layer, metric, level) |> 
+        summarise(value = mean(value)) |> 
+        ungroup()
+      
       ## Fix layer names
       lyr_map <- data.frame(layer = 1:nlyr(ras_lcpc), lyr_name = intervals)
       
@@ -704,6 +726,15 @@ fire_lscp_fun <- function(ras_int,
         
         lsm_c <- lsm |> 
           filter(level == "class") |> 
+          ## This handles the shifting spatial points for each
+          ## ARU across the years. A better way would be to filter
+          ## the ARUs actually surveyed and then bridge the remaining
+          ## ARUs unsampled in that year but sampled at another point
+          ## for generating a square matrix for model fitting.
+          group_by(plot_id, class, lyr_name, metric, level) |> 
+          summarise(value = mean(value)) |> 
+          ungroup() |> 
+          ## Original functionality
           mutate(FireClass = case_when(class == 0 ~ "Unburned",
                                        class == 1 ~ "Low_Sev",
                                        class == 2 ~ "Mod_Sev",
