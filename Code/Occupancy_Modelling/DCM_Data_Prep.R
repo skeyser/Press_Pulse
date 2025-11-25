@@ -62,15 +62,32 @@ load(here("./Data/Occ_Data/Thresh_By_Species_NoDetFilter/2023_99Conf_OccSppList.
 sp.det.list23 <- sp.det.list
 load(here("./Data/Occ_Data/Thresh_By_Species_NoDetFilter/2024_99Conf_OccSppList.RData"))
 sp.det.list24 <- sp.det.list
+load(here("./Data/Occ_Data/Thresh_By_Species_NoDetFilter/2025_99Conf_OccSppList.RData"))
+sp.det.list25 <- sp.det.list
+
+names(sp.det.list)
+str(sp.det.list21)
+## Initial occupancy across species
+init_occ <- function(x){
+  in_occ <- rowSums(x[,-1], na.rm = T)
+  in_occ <- sum(in_occ > 0)/length(in_occ)
+  return(in_occ)
+}
+
+sp_inocc <- lapply(sp.det.list21, init_occ)
+sp_inocc <- do.call(c, sp_inocc)
+species <- sp_inocc[sp_inocc >= 0.1]
+species <- names(species)
+species <- species[!str_detect(species, "Kestrel|Hawk|Eagle|Falcon|Sapsucker")]
 
 ## Species to use
-species <- c("Lazuli Bunting",
-             "Hermit Warbler",
-             "Western Tanager",
-             "Western Bluebird",
-             "Hermit Thrush",
-             "Mountain Chickadee",
-             "MacGillivray's Warbler")
+# species <- c("Lazuli Bunting",
+#              "Hermit Warbler",
+#              "Western Tanager",
+#              "Western Bluebird",
+#              "Hermit Thrush",
+#              "Mountain Chickadee",
+#              "MacGillivray's Warbler")
 
 sp.extract <- function(x, species){
   x <- x[names(x) %in% species]
@@ -81,6 +98,7 @@ sp.det.list21 <- sp.extract(sp.det.list21, species = species)
 sp.det.list22 <- sp.extract(sp.det.list22, species = species)
 sp.det.list23 <- sp.extract(sp.det.list23, species = species)
 sp.det.list24 <- sp.extract(sp.det.list24, species = species)
+sp.det.list25 <- sp.extract(sp.det.list25, species = species)
 
 ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 ##
@@ -101,6 +119,7 @@ sp.det.list21 <- lapply(sp.det.list21, padZero)
 sp.det.list22 <- lapply(sp.det.list22, padZero)
 sp.det.list23 <- lapply(sp.det.list23, padZero)
 sp.det.list24 <- lapply(sp.det.list24, padZero)
+sp.det.list25 <- lapply(sp.det.list25, padZero)
 
 ## Find all of the unique units across the 4 years
 findUniq <- function(x){
@@ -113,9 +132,10 @@ uniq_units21 <- unique(unlist(lapply(sp.det.list21, findUniq)))
 uniq_units22 <- unique(unlist(lapply(sp.det.list22, findUniq)))
 uniq_units23 <- unique(unlist(lapply(sp.det.list23, findUniq)))
 uniq_units24 <- unique(unlist(lapply(sp.det.list24, findUniq)))
+uniq_units25 <- unique(unlist(lapply(sp.det.list25, findUniq)))
 
 ## Combine all unique units and get unique values
-uniq_units <- unique(c(uniq_units21, uniq_units22, uniq_units23, uniq_units24))
+uniq_units <- unique(c(uniq_units21, uniq_units22, uniq_units23, uniq_units24, uniq_units25))
 
 ## These are the total unique units across the 4 survey years: 2095 ARUs
 length(uniq_units)
@@ -139,6 +159,7 @@ sp.det.std21 <- lapply(sp.det.list21, sp.det.fill)
 sp.det.std22 <- lapply(sp.det.list22, sp.det.fill)
 sp.det.std23 <- lapply(sp.det.list23, sp.det.fill)
 sp.det.std24 <- lapply(sp.det.list24, sp.det.fill)
+sp.det.std25 <- lapply(sp.det.list25, sp.det.fill)
 
 ## Double-check
 nrow(sp.det.std21[[1]]) == nrow(sp.det.std21[[2]])
@@ -274,6 +295,8 @@ sp.det.list23.r <- lapply(sp.det.std23, function(x) second_samp(DAT = x, interva
 sp.det.list23.r <- lapply(sp.det.list23.r, function(x) x |> dplyr::select(matches("J[0-9]")))
 sp.det.list24.r <- lapply(sp.det.std24, function(x) second_samp(DAT = x, interval = 6, id_col = "Cell_Unit", eff = F))
 sp.det.list24.r <- lapply(sp.det.list24.r, function(x) x |> dplyr::select(matches("J[0-9]")))
+sp.det.list25.r <- lapply(sp.det.std25, function(x) second_samp(DAT = x, interval = 6, id_col = "Cell_Unit", eff = F))
+sp.det.list25.r <- lapply(sp.det.list25.r, function(x) x |> dplyr::select(matches("J[0-9]")))
 
 ## I need to insert the code above here
 ## Now we want to merge the files across the years
@@ -283,10 +306,11 @@ for(i in 1:length(sp.det.std)){
   sp.det.list.tmp <- unlist(list(sp.det.list21.r[i], 
                                  sp.det.list22.r[i], 
                                  sp.det.list23.r[i],
-                                 sp.det.list24.r[i]),
+                                 sp.det.list24.r[i],
+                                 sp.det.list25.r[i]),
                             recursive = FALSE)
   
-  years <- c(2021:2024)
+  years <- c(2021:2025)
   
   # Ensure all arrays have the same column names
   all_cols <- unique(unlist(lapply(sp.det.list.tmp, colnames)))
@@ -429,19 +453,19 @@ eff.days.std <- lapply(eff.days.std, function(x) x |> dplyr::select(matches("J[0
 eff.days.std <- array(unlist(eff.days.std), dim = c(nsite, nsurv, nyear),
                       dimnames = list(uniq_units,
                                       colnames(eff.days.std[[1]]),
-                                      c(2021:2024)))
+                                      c(2021:2025)))
 
 eff.hrs.std <- lapply(eff.hrs.std, function(x) x |> dplyr::select(matches("J[0-9]")))
 eff.hrs.std <- array(unlist(eff.hrs.std), dim = c(nsite, nsurv, nyear),
                      dimnames = list(uniq_units,
                                      colnames(eff.hrs.std[[1]]),
-                                     c(2021:2024)))
+                                     c(2021:2025)))
 
 eff.jday.std <- lapply(eff.jday.std, function(x) x |> dplyr::select(matches("J[0-9]")))
 eff.jday.std <- array(unlist(eff.jday.std), dim = c(nsite, nsurv, nyear),
                       dimnames = list(uniq_units,
                                       colnames(eff.jday.std[[1]]),
-                                      c(2021:2024)))
+                                      c(2021:2025)))
 
 ## Mask the 0s to NAs since these values correspond to missing biological data
 eff.hrs.std.na <- eff.hrs.std
@@ -574,24 +598,33 @@ print(result$coverage_summary)
 ## -------------------------------------------------------------
 
 ## Load the fire data
-fire <- readRDS(here("Data/Fire_ARU_21_24_AllUnitsByYears.RDS"))
-fsev <- fire
+fire <- readRDS(here("Data/FireMets_ARU_21_25_AllUnitsByYears.RDS"))
+fsev <- fire$FireSeverity
+flscp <- fire$FireLscp
 
 ## Combining output before reclassifying
 fsev <- fsev |>
   mutate(Cell_Unit = gsub("G\\d{3}_V\\d{1}_", "", deployment_name)) |> 
   group_by(Cell_Unit, Fire_Sev_SurvExtYr) |>
-  select(Cell_Unit, Fire_Sev_SurvExtYr, Fire_Sev_mean_1_10) |> 
-  summarise(Fire_Sev_mean_1_10 = mean(Fire_Sev_mean_1_10)) |> 
+  select(Cell_Unit, Fire_Sev_SurvExtYr, Fire_Sev_mean) |> 
+  summarise(Fire_Sev_mean = mean(Fire_Sev_mean)) |> 
   arrange(Cell_Unit) |>
-  mutate(FCat1_10 = case_when(Fire_Sev_mean_1_10 == 0 ~ "Unburned",
-                              Fire_Sev_mean_1_10 > 0 & Fire_Sev_mean_1_10 < 2.25 ~ "Low/Mod",
-                              Fire_Sev_mean_1_10 >= 2.25 ~ "High"))
+  mutate(FCat = case_when(Fire_Sev_mean == 0 ~ "Unburned",
+                              Fire_Sev_mean > 0 & Fire_Sev_mean < 2.25 ~ "Low/Mod",
+                              Fire_Sev_mean >= 2.25 ~ "High"))
 
+## Landscape metrics for fire
+flscp <- flscp |> 
+  rename(deployment_name = plot_id) |> 
+  mutate(Cell_Unit = gsub("G\\d{3}_V\\d{1}_", "", deployment_name)) |> 
+  select(Cell_Unit, deployment_name, everything()) |> 
+  group_by(Cell_Unit, Year) |>
+  rename_with(~gsub("-", "_", .x)) |> 
+  mutate(across(Unburned_1_10_ed_c:High_Sev_1_10_pland_c, ~if_else(is.na(.), 0, .)))
 
 
 ## Load the climate data
-clim <- readRDS(here("Data/Climate_DCM_Covs.RDS"))
+clim <- readRDS(here("Data/Climate_DCM_Covs_2021_2024.RDS"))
 str(clim)
 
 static_clim <- clim[[1]] |> filter(Cell_Unit %in% uniq_units)
@@ -628,7 +661,7 @@ fire.arr <- fsev |>
   filter(Cell_Unit %in% uniq_units) |> 
   arrange(Cell_Unit) |> 
   tidyr::pivot_wider(names_from = Fire_Sev_SurvExtYr,
-                     values_from = FCat1_10,
+                     values_from = FCat,
                      id_cols = "Cell_Unit") |>
   tibble::column_to_rownames("Cell_Unit") |>
   as.matrix()
@@ -643,7 +676,7 @@ fire_init_dum <- model.matrix(~fire_init)
 # Create dynamic dummy variables across years
 # First, create an array to store the dummy variables
 # Create dynamic dummy variables maintaining yearly structure
-fire_dyn <- fire.arr[,2:4]  # Keep as matrix
+fire_dyn <- fire.arr[,2:5]  # Keep as matrix
 fire_dyn_dum <- array(NA, dim=c(nrow(fire_dyn), ncol(fire_dyn), 2))  # sites x years x (categories-1)
 
 # Create dummy variables for each year
@@ -667,7 +700,7 @@ str(fire_dyn_dum)
 #   as.matrix()
 
 ## Forest data
-cfo <- read.csv(here("Data/CFO_ARU_21_24.csv"))
+cfo <- read.csv(here("Data/CFO_ARU_21_25.csv"))
 cfo <- cfo |> 
   rename("deployment_name" = "dplymn_") |> 
   rename("Cell_Unit" = "Cll_Unt") |>
@@ -679,15 +712,15 @@ cfo <- cfo |>
   tibble::column_to_rownames("Cell_Unit")
 
 ## Elevation data
-topo <- read.csv(here("Data/Topo_Data_ARU_21_24.csv"))
+topo <- read.csv(here("Data/Topo_Data_ARU_21_25.csv"))
 topo <- topo |> 
   rename("deployment_name" = "dplymn_") |> 
   rename("Cell_Unit" = "Cll_Unt") |>
   filter(Cell_Unit %in% uniq_units) |> 
   arrange(Cell_Unit) |> 
-  select(Cell_Unit, Elevation) |> 
+  select(Cell_Unit, elevation) |> 
   group_by(Cell_Unit) |> 
-  summarise(Elevation = mean(Elevation)) |> 
+  summarise(Elevation = mean(elevation)) |> 
   tibble::column_to_rownames("Cell_Unit") |> 
   as.matrix()
 
@@ -792,7 +825,7 @@ cancov <- cfo$CanopyCover[rownames(cfo) %in% validARUs]
 canht <- cfo$CanopyHeight[rownames(cfo) %in% validARUs]
 lf <- cfo$LadderFuelDensity[rownames(cfo) %in% validARUs]
 topo <- topo[rownames(topo) %in% validARUs,]
-fire_dyn <- fire.arr[,2:4]  # Keep as matrix
+fire_dyn <- fire.arr[,2:5]  # Keep as matrix
 fire_dyn <- fire_dyn[rownames(fire_dyn) %in% validARUs, ]
 fire_dyn_dum <- array(NA, dim=c(nrow(fire_dyn), ncol(fire_dyn), 2))  # sites x years x (categories-1)
 
@@ -843,7 +876,7 @@ win.rag <- list(
 
 str(win.rag)
 
-saveRDS(win.rag, file = here("Data/Occ_Data/MSOM_Multi_Test_Categorical_Ragged_Full.RDS"))
+saveRDS(win.rag, file = here("Data/Occ_Data/DCM_Ragged_Full_2021_2025.RDS"))
 
 
 zst <- apply(win.rag$y_wide, c(1,3,4), max, na.rm = T)
