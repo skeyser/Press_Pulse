@@ -447,117 +447,6 @@ int_ras_fun <- function(ras_stack,
   return(ras_int)
 }
 
-# ## Old function using years as names
-# int_ras_fun <- function(ras_stack,
-#                         intervals,
-#                         sum_int,
-#                         locations){
-#   
-#   if(!is.null(intervals) & class(intervals) == "character"){
-#     int_len <- length(intervals)
-#     seq_list <- vector(mode = "list", length = int_len)
-#     int <- 0
-#     while(int < int_len){
-#       int <- int + 1
-#       int.t <- strsplit(intervals[int], "-")[[1]]
-#       if(length(int.t) > 1){
-#         s_seq <- int.t[[1]]
-#         e_seq <- int.t[[2]]
-#         seq_list[[int]] <- seq(s_seq, e_seq, by = 1)
-#       } else {seq_list[[int]] <- as.numeric(int.t)}
-#     }
-#     
-#     ## Check is the seq list is given in dates or integer years
-#     if(!any(sort(unlist(seq_list)) %in% names(ras_stack))){
-#       aru_years <- unique(locations$survey_year)
-#       if(length(aru_years) > 1){
-#         
-#         ## Make sure all the years are integers
-#         years <- as.integer(aru_years)
-#         ## Find the number of years
-#         num_years <- length(years)
-#         ## Replicate the sequence list n times
-#         seq_list <- rep(list(seq_list), num_years)
-#         ## for each year replace the values to match the names of the fire data
-#         for(i in 1:num_years){
-#           seq_tmp <- seq_list[[i]]
-#           ## Back calculate the expected dates from the sequence of numbers
-#           ## Sort the unlisted seq_list vec
-#           seq_vec <- sort(unlist(seq_tmp))
-#           ## Find the year of interest
-#           years <- as.integer(aru_years[i])
-#           ## Find all years before the year of interest
-#           fire_years <- years - seq_vec
-#           ## Update the seq_list to the dates of the fires
-#           seq_list[[i]] <- lapply(seq_list[[i]], function(x) fire_years[x])
-#         }
-#       }
-#       
-#       if(length(aru_years) == 1){
-#         ## Back calculate the expected dates from the sequence of numbers
-#         ## Sort the unlisted seq_list vec
-#         seq_vec <- sort(unlist(seq_list))
-#         ## Find the year of interest
-#         years <- as.integer(aru_years)
-#         ## Find all years before the year of interest
-#         fire_years <- years - seq_vec
-#         ## Update the seq_list to the dates of the fires
-#         seq_list <- lapply(seq_list, function(x) fire_years[x])
-#       }
-#     } # fix year naming
-#     
-#     if(length(aru_years) == 1){
-#       ## Create the spatial products with the sequences for 1 year
-#       ras_list <- vector(mode = "list", length = int_len)
-#       for(i in 1:length(seq_list)){
-#         message("This is a single year workflow. Set by survey_years at the top-level.")
-#         message(paste("Finding", sum_int, "value for Year:", aru_years, "For interval", i, "of", int_len))
-#         seq_temp <- seq_list[[i]]
-#         ras_tmp <- ras_stack[[which(names(ras_stack) %in% seq_list[[i]])]]
-#         if(nlyr(ras_tmp) < 2){
-#           ras_list[[i]] <- ras_tmp
-#           names(ras_list[[i]]) <- names(ras_tmp)
-#         } else {
-#           ras_list[[i]] <- app(ras_tmp, fun = sum_int)
-#           names(ras_list[[i]]) <- paste0(names(ras_tmp)[1], "-", names(ras_tmp)[length(names(ras_tmp))])
-#           ras_int <- list(do.call(c, ras_list))
-#         }
-#       } ## Layer extraction
-#     }
-#     
-#     if(length(aru_years) > 1){
-#       ## Create the spatial products with the sequences for 1 year
-#       ras_list <- vector(mode = "list", length = int_len)
-#       ras_list <- rep(list(ras_list), num_years)
-#       for(i in 1:num_years){
-#         for(j in 1:int_len){
-#           print(paste("Finding", sum_int, "value for Year:", aru_years[i], "For interval", j, "of", int_len))
-#           seq_temp <- unlist(seq_list[[i]][j])
-#           ras_tmp <- ras_stack[[which(names(ras_stack) %in% seq_temp)]]
-#           if(nlyr(ras_tmp) < 2){
-#             ras_list[[i]][[j]] <- ras_tmp
-#             names(ras_list[[i]][[j]]) <- names(ras_tmp)
-#           } else {
-#             ras_list[[i]][[j]] <- app(ras_tmp, fun = sum_int)
-#             names(ras_list[[i]][[j]]) <- paste0(names(ras_tmp)[1], "-", names(ras_tmp)[length(names(ras_tmp))])
-#           }
-#         }
-#         
-#         ras_int <- vector(length(ras_list), mode = "list")
-#         for(i in 1:length(ras_list)){
-#           ras_int[[i]] <- do.call(c, ras_list[[i]])
-#         }
-#         
-#         
-#       } ## Layer extraction
-#     }
-#     
-#   } #FULL IF STATEMENT
-#   
-#   ## Return the stacked intervals
-#   return(ras_int)
-# }
-
 ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 ##
 ## Subsection: Interval Process
@@ -649,7 +538,7 @@ fire_lscp_fun <- function(ras_int,
                           intervals,
                           buff_size,
                           id_col,
-                          metrics = c("lsm_c_pland")){
+                          metrics){
   
   for(i in 1:length(ras_int)){
     
