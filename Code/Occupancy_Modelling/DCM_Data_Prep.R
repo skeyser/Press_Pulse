@@ -54,31 +54,66 @@ library(lubridate)
 ## Load in the bird data for 2021
 
 ## We start by using 1 species of interest (Lazuli's bunting)
-load(here("./Data/Occ_Data/Thresh_By_Species_NoDetFilter/2021_99Conf_OccSppList.RData"))
+load(here("./Data/Occ_Data/Thresh_By_Species_NoDetFilter_Thresh2024/2021_99Conf_OccSppList.RData"))
 sp.det.list21 <- sp.det.list
-load(here("./Data/Occ_Data/Thresh_By_Species_NoDetFilter/2022_99Conf_OccSppList.RData"))
+load(here("./Data/Occ_Data/Thresh_By_Species_NoDetFilter_Thresh2024/2022_99Conf_OccSppList.RData"))
 sp.det.list22 <- sp.det.list
-load(here("./Data/Occ_Data/Thresh_By_Species_NoDetFilter/2023_99Conf_OccSppList.RData"))
+load(here("./Data/Occ_Data/Thresh_By_Species_NoDetFilter_Thresh2024/2023_99Conf_OccSppList.RData"))
 sp.det.list23 <- sp.det.list
-load(here("./Data/Occ_Data/Thresh_By_Species_NoDetFilter/2024_99Conf_OccSppList.RData"))
+load(here("./Data/Occ_Data/Thresh_By_Species_NoDetFilter_Thresh2024/2024_99Conf_OccSppList.RData"))
 sp.det.list24 <- sp.det.list
-load(here("./Data/Occ_Data/Thresh_By_Species_NoDetFilter/2025_99Conf_OccSppList.RData"))
+load(here("./Data/Occ_Data/Thresh_By_Species_NoDetFilter_Thresh2024/2025_99Conf_OccSppList.RData"))
 sp.det.list25 <- sp.det.list
 
 names(sp.det.list)
 str(sp.det.list21)
+
+# ## Checking spatial locations
+# coords <- st_read(here("./Data/Spatial_Data/ARU_Locs_2021_2025.shp"))
+# coords <- coords |> filter(srvy_yr == 2021)
+# 
+# wbnu <- sp.det.list21$`White-breasted Nuthatch`
+# result <- wbnu %>%
+#   rowwise() %>%
+#   mutate(Max_Occ = {
+#     vals <- c_across(-Cell_Unit)
+#     max_val <- max(vals, na.rm = TRUE)
+#     ifelse(is.infinite(max_val), NA, max_val)
+#   }) %>%
+#   select(Cell_Unit, Max_Occ) |> 
+#   mutate(Cell_Unit = ifelse(stringr::str_detect(Cell_Unit, "C[0-9]{4}_"), Cell_Unit, gsub("C", "C0", Cell_Unit)))
+# 
+# 
+# ## Join by cell_unit
+# wbnu <- coords |> 
+#   rename("Cell_Unit" = "Cll_Unt") |> 
+#   left_join(result)
+# 
+# ggplot(wbnu) +
+#   geom_sf(aes(color = as.factor(Max_Occ)))
+
 ## Initial occupancy across species
 init_occ <- function(x){
   in_occ <- rowSums(x[,-1], na.rm = T)
-  in_occ <- sum(in_occ > 0)/length(in_occ)
+  in_occ <- sum(in_occ > 0)/sum(!is.na(in_occ))
   return(in_occ)
 }
 
-sp_inocc <- lapply(sp.det.list21, init_occ)
-sp_inocc <- do.call(c, sp_inocc)
-species <- sp_inocc[sp_inocc >= 0.1]
-species <- names(species)
-species <- species[!str_detect(species, "Kestrel|Hawk|Eagle|Falcon|Sapsucker")]
+sp.list.fun <- function(sp_list, naive_occ = 0.1){
+  sp_inocc <- lapply(sp_list, init_occ)
+  sp_inocc <- do.call(c, sp_inocc)
+  species <- sp_inocc[sp_inocc >= 0.1]
+  species <- names(species)
+  species <- species[!str_detect(species, "Kestrel|Hawk|Eagle|Falcon")]
+  return(species)
+}
+
+species <- unique(c(
+  sp.list.fun(sp.det.list21),
+  sp.list.fun(sp.det.list22),
+  sp.list.fun(sp.det.list23),
+  sp.list.fun(sp.det.list24),
+  sp.list.fun(sp.det.list25)))
 
 ## Species to use
 # species <- c("Lazuli Bunting",
@@ -100,6 +135,76 @@ sp.det.list23 <- sp.extract(sp.det.list23, species = species)
 sp.det.list24 <- sp.extract(sp.det.list24, species = species)
 sp.det.list25 <- sp.extract(sp.det.list25, species = species)
 
+## Group acoustically indistinguishable species
+combine_species <- function(species_list, species_to_combine, new_name, date_cols) {
+  # Start with first species
+  combined_df <- species_list[[species_to_combine[1]]]
+  
+  # Sum values across species
+  for(sp in species_to_combine[-1]) {
+    combined_df[, date_cols] <- combined_df[, date_cols] + species_list[[sp]][, date_cols]
+  }
+  
+  # Binarize: convert all values > 0 to 1
+  combined_df <- combined_df %>%
+    mutate(across(all_of(date_cols), ~as.integer(. > 0)))
+  
+  # Remove original species and add combined
+  species_list[species_to_combine] <- NULL
+  species_list[[new_name]] <- combined_df
+  
+  return(species_list)
+}
+
+## Combine Sapsuckers
+sp.det.list21 <- combine_species(species_list = sp.det.list21, 
+                               species_to_combine = c("Red-breasted Sapsucker", "Red-naped Sapsucker", "Williamson's Sapsucker"), 
+                               new_name = "Sphyrapicus spp.",
+                               date_cols = colnames(sp.det.list21[[1]])[str_detect(colnames(sp.det.list21[[1]]), "Cell_Unit", negate = T)])
+sp.det.list22 <- combine_species(species_list = sp.det.list22, 
+                                 species_to_combine = c("Red-breasted Sapsucker", "Red-naped Sapsucker", "Williamson's Sapsucker"), 
+                                 new_name = "Sphyrapicus spp.",
+                                 date_cols = colnames(sp.det.list22[[1]])[str_detect(colnames(sp.det.list22[[1]]), "Cell_Unit", negate = T)])
+sp.det.list23 <- combine_species(species_list = sp.det.list23, 
+                                 species_to_combine = c("Red-breasted Sapsucker", "Red-naped Sapsucker", "Williamson's Sapsucker"), 
+                                 new_name = "Sphyrapicus spp.",
+                                 date_cols = colnames(sp.det.list23[[1]])[str_detect(colnames(sp.det.list23[[1]]), "Cell_Unit", negate = T)])
+sp.det.list24 <- combine_species(species_list = sp.det.list24, 
+                                 species_to_combine = c("Red-breasted Sapsucker", "Red-naped Sapsucker", "Williamson's Sapsucker"), 
+                                 new_name = "Sphyrapicus spp.",
+                                 date_cols = colnames(sp.det.list24[[1]])[str_detect(colnames(sp.det.list24[[1]]), "Cell_Unit", negate = T)])
+sp.det.list25 <- combine_species(species_list = sp.det.list25, 
+                                 species_to_combine = c("Red-breasted Sapsucker", "Red-naped Sapsucker", "Williamson's Sapsucker"), 
+                                 new_name = "Sphyrapicus spp.",
+                                 date_cols = colnames(sp.det.list25[[1]])[str_detect(colnames(sp.det.list25[[1]]), "Cell_Unit", negate = T)])
+
+# ## Combine vireos
+## Plumbeous dropped with new thresholds which makes sense...eastern Sierra species
+# sp.det.list21 <- combine_species(species_list = sp.det.list21, 
+#                                species_to_combine = c("Cassin's Vireo", "Plumbeous Vireo"), 
+#                                new_name = "Vireo spp.",
+#                                date_cols = colnames(sp.det.list21[[1]])[str_detect(colnames(sp.det.list21[[1]]), "Cell_Unit", negate = T)])
+# sp.det.list22 <- combine_species(species_list = sp.det.list22, 
+#                                  species_to_combine = c("Cassin's Vireo", "Plumbeous Vireo"), 
+#                                  new_name = "Vireo spp.",
+#                                  date_cols = colnames(sp.det.list22[[1]])[str_detect(colnames(sp.det.list22[[1]]), "Cell_Unit", negate = T)])
+# sp.det.list23 <- combine_species(species_list = sp.det.list23, 
+#                                  species_to_combine = c("Cassin's Vireo", "Plumbeous Vireo"), 
+#                                  new_name = "Vireo spp.",
+#                                  date_cols = colnames(sp.det.list23[[1]])[str_detect(colnames(sp.det.list23[[1]]), "Cell_Unit", negate = T)])
+# sp.det.list24 <- combine_species(species_list = sp.det.list24, 
+#                                  species_to_combine = c("Cassin's Vireo", "Plumbeous Vireo"), 
+#                                  new_name = "Vireo spp.",
+#                                  date_cols = colnames(sp.det.list24[[1]])[str_detect(colnames(sp.det.list24[[1]]), "Cell_Unit", negate = T)])
+# sp.det.list25 <- combine_species(species_list = sp.det.list25, 
+#                                  species_to_combine = c("Cassin's Vireo", "Plumbeous Vireo"), 
+#                                  new_name = "Vireo spp.",
+#                                  date_cols = colnames(sp.det.list25[[1]])[str_detect(colnames(sp.det.list25[[1]]), "Cell_Unit", negate = T)])
+
+names(sp.det.list21)
+names(sp.det.list25)
+
+
 ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 ##
 ## Subsection: 3-D array for site x rep x year
@@ -109,11 +214,7 @@ sp.det.list25 <- sp.extract(sp.det.list25, species = species)
 ## Put this data into an array, but first we need to align the data
 ## so that we have an idea of the matching sites
 ## Add the padded 0 to ensure all cell units have C + 4 digits
-padZero <- function(x){
-  x$Cell_Unit <- ifelse(stringr::str_detect(x$Cell_Unit, "C[0-9]{4}_"), x$Cell_Unit, gsub("C", "C0", x$Cell_Unit))
-  x <- x[order(x$Cell_Unit), ]
-  return(x)
-}
+
 
 sp.det.list21 <- lapply(sp.det.list21, padZero)
 sp.det.list22 <- lapply(sp.det.list22, padZero)
@@ -162,8 +263,10 @@ sp.det.std24 <- lapply(sp.det.list24, sp.det.fill)
 sp.det.std25 <- lapply(sp.det.list25, sp.det.fill)
 
 ## Double-check
+nrow(sp.det.std21[[1]])
 nrow(sp.det.std21[[1]]) == nrow(sp.det.std21[[2]])
 nrow(sp.det.std21[[1]]) == nrow(sp.det.std22[[1]])
+nrow(sp.det.std21[[1]]) == nrow(sp.det.std25[[1]])
 
 # ## Now we want to merge the files across the years
 # sp.det.std <- vector(mode = "list", length = length(sp.det.std21))
@@ -329,7 +432,8 @@ for(i in 1:length(sp.det.std)){
 }
 
 str(sp.det.std)
-
+str(sp.det.std[[1]])
+str(sp.det.std[[2]])
 
 ## Package the data up as a 4-D array for the y
 dates <- dimnames(sp.det.std[[1]])[[2]]
@@ -340,7 +444,7 @@ species <- unique(unlist(lapply(sp.det.std, function(x) {
 
 # Create 4-D array
 sp.det.array <- abind(sp.det.std, along = 4)
-
+str(sp.det.array)
 # Add dimension names
 dimnames(sp.det.array) <- list(
   Cell_Unit = uniq_units,
@@ -373,7 +477,7 @@ nspec <- dim(y4d)[4]
 ## Get the number of hours per survey for the detection covariate
 ## This needs to be edited to handle all years of data and 
 ## backfill in the sites that are missing with NA for NA covs
-eff.dat <- list.files(here("Data/Occ_Data/Thresh_By_Species_NoDetFilter/"), pattern = "Effort", full.names = T)
+eff.dat <- list.files(here("Data/Occ_Data/Thresh_By_Species_NoDetFilter_Thresh2024/"), pattern = "Effort", full.names = T)
 
 eff.dat <- lapply(eff.dat, read.csv)
 
@@ -501,9 +605,12 @@ for (i in 1:dim(eff.days.std)[1]) {
     }
   }
 }
-# Print the modified 3D array
+## Print the modified 3D array
+## This looks good...effort data matches biological data
 print(y4d.new[,,1,])
 print(y4d.new[,,2,])
+print(y4d.new[1:5,,1,1])
+print(eff.hrs.std[1:5,,1])
 
 # Keep only Hermit Thrush: dims become site x date x year (3D array)
 ht <- y4d.new[, , , "Hermit Warbler"]
@@ -598,7 +705,7 @@ print(result$coverage_summary)
 ## -------------------------------------------------------------
 
 ## Load the fire data
-fire <- readRDS(here("Data/FireMets_ARU_21_25_AllUnitsByYears.RDS"))
+fire <- readRDS(here("Data/FireMets_ARU_21_25_AllUnitsByYears_1_10yr.RDS"))
 fsev <- fire$FireSeverity
 flscp <- fire$FireLscp
 
@@ -615,12 +722,13 @@ fsev <- fsev |>
 
 ## Landscape metrics for fire
 flscp <- flscp |> 
-  rename(deployment_name = plot_id) |> 
   mutate(Cell_Unit = gsub("G\\d{3}_V\\d{1}_", "", deployment_name)) |> 
   select(Cell_Unit, deployment_name, everything()) |> 
   group_by(Cell_Unit, Year) |>
   rename_with(~gsub("-", "_", .x)) |> 
-  mutate(across(Unburned_1_10_ed_c:High_Sev_1_10_pland_c, ~if_else(is.na(.), 0, .)))
+  mutate(across(Unburned_1_10_ed_c:High_Sev_1_10_pland_c, ~if_else(is.na(.), 0, .))) |> 
+  mutate(LowModSF_pland = Low_Sev_1_10_pland_c + Mod_Sev_1_10_pland_c) |> 
+  select(Cell_Unit, deployment_name, LowModSF_pland, HSF_pland = High_Sev_1_10_pland_c, Fire_Pattern = `1_10_mutinf_l`)
 
 
 ## Load the climate data
@@ -687,6 +795,50 @@ for(t in 1:ncol(fire_dyn)) {
 
 str(fire_dyn_dum)
 
+## Fire landscape metrics
+## 1-5 years HSF
+flscp_1_5 <- flscp |> 
+  filter(Cell_Unit %in% uniq_units) |> 
+  arrange(Cell_Unit) |> 
+  tidyr::pivot_wider(names_from = Year,
+                     values_from = High_Sev_1_5_pland_c,
+                     id_cols = "Cell_Unit",
+                     values_fn = mean) |>
+  tibble::column_to_rownames("Cell_Unit") |>
+  as.matrix()
+  
+## 6-10 years HSF
+flscp_6_10 <- flscp |> 
+  filter(Cell_Unit %in% uniq_units) |> 
+  arrange(Cell_Unit) |> 
+  tidyr::pivot_wider(names_from = Year,
+                     values_from = High_Sev_6_10_pland_c,
+                     id_cols = "Cell_Unit",
+                     values_fn = mean) |>
+  tibble::column_to_rownames("Cell_Unit") |>
+  as.matrix()
+
+## 1-10 years HSF
+flscp_1_10_pland <- flscp |> 
+  filter(Cell_Unit %in% uniq_units) |> 
+  arrange(Cell_Unit) |> 
+  tidyr::pivot_wider(names_from = Year,
+                     values_from = HSF_pland,
+                     id_cols = "Cell_Unit",
+                     values_fn = mean) |>
+  tibble::column_to_rownames("Cell_Unit") |>
+  as.matrix()
+
+flscp_1_10_mutinf <- flscp |> 
+  filter(Cell_Unit %in% uniq_units) |> 
+  arrange(Cell_Unit) |> 
+  tidyr::pivot_wider(names_from = Year,
+                     values_from = Fire_Pattern,
+                     id_cols = "Cell_Unit",
+                     values_fn = mean) |>
+  tibble::column_to_rownames("Cell_Unit") |>
+  as.matrix()
+
 ## Take the baseline climate for initial occupancy
 # bclim <- fclim |> 
 #   filter(Cell_Unit %in% uniq_units) |> 
@@ -747,11 +899,12 @@ win.data <- list(
   trendp = static_clim$Trend_Prcp,
   Lat = static_clim$Lat,
   Long = static_clim$Long,
-  cc = cancov,
+  cc = cfo$CanopyCover,
   fire_init = fire_init_dum,
   tanom = dyn_clim$Tmax,
   panom = dyn_clim$Prcp,
   fire = fire_dyn_dum,
+  fire_pland = flscp_1_10_pland[,2:5],
   eff.hrs.sc = eff.hrs.std.sc,
   eff.jday.sc = eff.jday.std.sc,
   eff.hrs = eff.hrs.std,
@@ -768,7 +921,7 @@ win.data <- list(
 
 str(win.data)
 
-saveRDS(win.data, file = here("Data/Occ_Data/MSOM_Multi_Test_Categorical_Skip.RDS"))
+saveRDS(win.data, file = here("Data/Occ_Data/MSOM_Multi_Wide_Preds.RDS"))
 
 ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 ##
@@ -802,19 +955,27 @@ eff.hrs.long <- numeric(nObs)
 eff.jday.long <- numeric(nObs)
 y_wide <- y4d.new
 y_wide <- y_wide[dimnames(y_wide)[[1]] %in% validARUs,,,]
+eff.hrs.std <- eff.hrs.std[dimnames(eff.hrs.std)[[1]] %in% validARUs,,]
+eff.jday.std <- eff.jday.std[dimnames(eff.jday.std)[[1]] %in% validARUs,,]
 
 for(v in 1:nObs){
   i <- obs_site[v]
   j <- obs_rep[v]
   t <- obs_year[v]
   y_long[v, ] <- y_wide[i,j,t,]
-  eff.hrs.long[v] <- eff.hrs.std[i,j,t]
-  eff.jday.long[v] <- eff.jday.std[i,j,t]
+  
+  if(eff.hrs.std[i,j,t] == 0){stop("Zero Hit. Check indexing.")}
+  else {eff.hrs.long[v] <- eff.hrs.std[i,j,t]}
+  
+  if(eff.jday.std[i,j,t] == 0){stop("Zero Hit. Check indexing.")}
+  else {eff.jday.long[v] <- eff.jday.std[i,j,t]}
 }
 
 any(is.na(y_long))
 any(is.na(eff.hrs.long))
+sum(eff.hrs.long == 0)/length(eff.hrs.long)
 any(is.na(eff.jday.long))
+sum(eff.jday.long == 0)/length(eff.jday.long)
 
 glimpse(y_long)
 
@@ -828,6 +989,11 @@ topo <- topo[rownames(topo) %in% validARUs,]
 fire_dyn <- fire.arr[,2:5]  # Keep as matrix
 fire_dyn <- fire_dyn[rownames(fire_dyn) %in% validARUs, ]
 fire_dyn_dum <- array(NA, dim=c(nrow(fire_dyn), ncol(fire_dyn), 2))  # sites x years x (categories-1)
+#flscp_1_5 <- flscp_1_5[rownames(flscp_1_5) %in% validARUs,2:5]
+#flscp_6_10 <- flscp_6_10[rownames(flscp_6_10) %in% validARUs,2:5]
+#flscp_1_10 <- flscp_1_10[rownames(flscp_1_10) %in% validARUs,2:5]
+flscp_pland <- flscp_1_10_pland[rownames(flscp_1_10_pland) %in% validARUs, 2:5]
+flscp_pattern <- flscp_1_10_mutinf[rownames(flscp_1_10_mutinf) %in% validARUs, 2:5]
 
 # Create dummy variables for each year
 for(t in 1:ncol(fire_dyn)) {
@@ -859,6 +1025,10 @@ win.rag <- list(
   tanom = dyn_clim$Tmax,
   panom = dyn_clim$Prcp,
   fire = fire_dyn_dum,
+  #hsf_pland15 = flscp_1_5,
+  #hsf_pland610 = flscp_6_10,
+  hsf_pland = flscp_pland,
+  fire_pattern = flscp_pattern,
   eff.hrs = eff.hrs.long,
   eff.jday = eff.jday.long,
   nsites = nsite,
@@ -876,8 +1046,14 @@ win.rag <- list(
 
 str(win.rag)
 
-saveRDS(win.rag, file = here("Data/Occ_Data/DCM_Ragged_Full_2021_2025.RDS"))
+saveRDS(win.rag, file = here("Data/Occ_Data/DCM_Ragged_Full_2021_2025_FireCont_Thresh24.RDS"))
 
+
+
+## Checking data
+win.rag <- readRDS(file = here("Data/Occ_Data/DCM_Ragged_Full_2021_2025_FireCont_Thresh24.RDS"))
+
+nspec <- win.rag$nspec
 
 zst <- apply(win.rag$y_wide, c(1,3,4), max, na.rm = T)
 zst[is.infinite(zst)] <- NA
@@ -995,7 +1171,9 @@ colnames(raw_det_matrix) <- paste("Species", dimnames(win.rag$y_wide)[[4]])
 
 raw_occ_df <- data.frame(
   site = 1:nsites,
-  cc   = win.rag$cc,
+  cc_raw = win.rag$cc,
+  cc   = poly(win.rag$cc, 2)[,1],
+  cc2 = poly(win.rag$cc, 2)[,2],
   ch = win.rag$ch,
   lf = win.rag$lf,
   temp = win.rag$btmax,
@@ -1008,11 +1186,7 @@ raw_occ_df <- data.frame(
   Ele = win.rag$ele,
   TrendT = win.rag$trendt,
   TrendTmin = win.rag$trendtmin,
-  TrendP = win.rag$trendp,
-  Fire = fsev |> 
-    filter(Cell_Unit %in% validARUs) |> 
-    filter(Fire_Sev_SurvExtYr == 2021) |> 
-    pull(Fire_Sev_mean_1_10)
+  TrendP = win.rag$trendp
 )
 
 # Add columns for each species
@@ -1026,7 +1200,36 @@ raw_occ_long <- raw_occ_df %>%
   mutate(species = gsub("Species ", "", species))
 
 ## Plots
-ggplot(raw_occ_long, aes(x = scale(cc), y = detected)) +
+ggplot(raw_occ_long, aes(x = cc_raw, y = detected)) +
+  geom_jitter(height = 0.05, alpha = 0.5) +
+  geom_smooth(method = "glm", 
+              method.args = list(family = binomial), 
+              formula = y ~ poly(x, 2),
+              se = TRUE) +
+  facet_wrap(~ species) +
+  theme_bw() +
+  labs(x = "Canopy Cover",
+       y = "Naïve Occupancy (≥1 detection in Year 1)")
+
+ggplot(raw_occ_long, aes(x = cc_raw, y = detected)) +
+  geom_jitter(height = 0.05, alpha = 0.5) +
+  geom_smooth(method = "glm", method.args = list(family = binomial), se = TRUE) +
+  facet_wrap(~ species) +
+  theme_bw() +
+  labs(x = "Canopy Cover",
+       y = "Naïve Occupancy (≥1 detection in Year 1)")
+
+ggplot(raw_occ_long, aes(x = cc_raw, y = detected)) +
+  geom_jitter(height = 0.05, alpha = 0.5) +
+  geom_smooth(method = "glm", method.args = list(family = binomial), 
+              formula = y ~ x + I(x^2),
+              se = TRUE) +
+  facet_wrap(~ species) +
+  theme_bw() +
+  labs(x = "Canopy Cover",
+       y = "Naïve Occupancy (≥1 detection in Year 1)")
+
+ggplot(raw_occ_long, aes(x = cc2, y = detected)) +
   geom_jitter(height = 0.05, alpha = 0.5) +
   geom_smooth(method = "glm", method.args = list(family = binomial), se = TRUE) +
   facet_wrap(~ species) +
@@ -1066,10 +1269,31 @@ ggplot(raw_occ_long, aes(x = Ele^2, y = detected)) +
   labs(x = "Elevation Sq.",
        y = "Naïve Occupancy (≥1 detection in Year 1)")
 
+ggplot(raw_occ_long, aes(x = Ele, y = detected)) +
+  geom_jitter(height = 0.05, alpha = 0.5) +
+  geom_smooth(method = "glm", 
+              method.args = list(family = binomial), 
+              formula = y ~ poly(x, 2),
+              se = TRUE) +
+  facet_wrap(~ species) +
+  theme_bw() +
+  labs(x = "Elevation Sq.",
+       y = "Naïve Occupancy (≥1 detection in Year 1)")
 
 ggplot(raw_occ_long, aes(x = temp, y = detected)) +
   geom_jitter(height = 0.05, alpha = 0.5) +
   geom_smooth(method = "glm", method.args = list(family = binomial), se = TRUE) +
+  facet_wrap(~ species) +
+  theme_bw() +
+  labs(x = "Temperature JJA",
+       y = "Naïve Occupancy (≥1 detection in Year 1)")
+
+ggplot(raw_occ_long, aes(x = temp, y = detected)) +
+  geom_jitter(height = 0.05, alpha = 0.5) +
+  geom_smooth(method = "glm", 
+              method.args = list(family = binomial), 
+              formula = y ~ poly(x, 2),
+              se = TRUE) +
   facet_wrap(~ species) +
   theme_bw() +
   labs(x = "Temperature JJA",
@@ -1083,6 +1307,18 @@ ggplot(raw_occ_long, aes(x = tmin, y = detected)) +
   labs(x = "Min Temperature JJA",
        y = "Naïve Occupancy (≥1 detection in Year 1)")
 
+ggplot(raw_occ_long, aes(x = tmin, y = detected)) +
+  geom_jitter(height = 0.05, alpha = 0.5) +
+  geom_smooth(method = "glm", 
+              method.args = list(family = binomial), 
+              formula = y ~ poly(x, 2),
+              se = TRUE) +
+  facet_wrap(~ species) +
+  theme_bw() +
+  labs(x = "Min Temperature Sq. JJA",
+       y = "Naïve Occupancy (≥1 detection in Year 1)")
+
+
 ggplot(raw_occ_long, aes(x = temp^2, y = detected)) +
   geom_jitter(height = 0.05, alpha = 0.5) +
   geom_smooth(method = "glm", method.args = list(family = binomial), se = TRUE) +
@@ -1094,6 +1330,17 @@ ggplot(raw_occ_long, aes(x = temp^2, y = detected)) +
 ggplot(raw_occ_long, aes(x = prec, y = detected)) +
   geom_jitter(height = 0.05, alpha = 0.5) +
   geom_smooth(method = "glm", method.args = list(family = binomial), se = TRUE) +
+  facet_wrap(~ species) +
+  theme_bw() +
+  labs(x = "Precip JJA",
+       y = "Naïve Occupancy (≥1 detection in Year 1)")
+
+ggplot(raw_occ_long, aes(x = prec, y = detected)) +
+  geom_jitter(height = 0.05, alpha = 0.5) +
+  geom_smooth(method = "glm", 
+              method.args = list(family = binomial), 
+              formula = y ~ poly(x, 2),
+              se = TRUE) +
   facet_wrap(~ species) +
   theme_bw() +
   labs(x = "Precip JJA",
