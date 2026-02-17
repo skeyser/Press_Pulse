@@ -40,7 +40,7 @@ library(precrec)
 ## -------------------------------------------------------------
 
 ## load species data
-species.list_2021=list.files(path=here('./Data/Species_Thresholds/2021 Validation Results/'),
+species.list_2021=list.files(path=here('./Data/Species_Thresholds/2024 Validation Results/'),
                              recursive=T,pattern='csv$',full.names = T)
 
 ## Pre-configured params
@@ -65,7 +65,7 @@ for(s in 1:length(species.list_2021)){
   dt=read.csv(species.list_2021[s])
   
   ## Generate logit-scale scores
-  dt$raw=log((dt$score/1000)/(1-(dt$score/1000)))
+  dt$raw=log((dt$score/1000)/((1-(dt$score/1000))+0.001))
   
   ## Pull species name from the files
   species=gsub(".*/(.*)\\.csv", "\\1", species.list_2021[s])
@@ -124,7 +124,7 @@ for(s in 1:length(species.list_2021)){
     abline(v=cutoff975.c, col='green',lwd=4)
     abline(v=cutoff99.c,col='magenta',lwd=4)
   }
-    
+  
   
   if(histogram=="yes"){
     hist(dt$score,main=species,
@@ -200,7 +200,7 @@ for(s in 1:length(species.list_2021)){
     PresenceAbsence::presence.absence.accuracy(na.rm = TRUE, 
                                                st.dev = FALSE, 
                                                threshold = c(0.9, 0.95, 0.975, 0.99),
-                                               )
+    )
   
   pa_metrics.r <- dt |> 
     mutate(ID = 1:nrow(dt), score = raw) |> 
@@ -246,20 +246,20 @@ for(s in 1:length(species.list_2021)){
   
   # Create complete 2x2 confusion matrices with all possible combinations
   ConfMat90.c <- table(factor(dt$correct, levels=c(0,1)), 
-                     factor(dt$conf_pred_90, levels=c(0,1)))
+                       factor(dt$conf_pred_90, levels=c(0,1)))
   ConfMat95.c <- table(factor(dt$correct, levels=c(0,1)), 
-                     factor(dt$conf_pred_95, levels=c(0,1)))
+                       factor(dt$conf_pred_95, levels=c(0,1)))
   ConfMat975.c <- table(factor(dt$correct, levels=c(0,1)), 
-                       factor(dt$conf_pred_975, levels=c(0,1)))
+                        factor(dt$conf_pred_975, levels=c(0,1)))
   ConfMat99.c <- table(factor(dt$correct, levels=c(0,1)), 
-                     factor(dt$conf_pred_99, levels=c(0,1)))
+                       factor(dt$conf_pred_99, levels=c(0,1)))
   
   ConfMat90.r <- table(factor(dt$correct, levels=c(0,1)), 
                        factor(dt$r_pred_90, levels=c(0,1)))
   ConfMat95.r <- table(factor(dt$correct, levels=c(0,1)), 
                        factor(dt$r_pred_95, levels=c(0,1)))
   ConfMat975.r <- table(factor(dt$correct, levels=c(0,1)), 
-                       factor(dt$r_pred_975, levels=c(0,1)))
+                        factor(dt$r_pred_975, levels=c(0,1)))
   ConfMat99.r <- table(factor(dt$correct, levels=c(0,1)), 
                        factor(dt$r_pred_99, levels=c(0,1)))
   
@@ -367,6 +367,8 @@ for(s in 1:length(species.list_2021)){
   output_2021$MCCF1.r[s] <- summary(mcc_f1.r)$mccf1_metric
   output_2021$MCCF1_ScoreThresh.r[s] <- summary(mcc_f1.r)$best_threshold
   
+  ## Sample size
+  output_2021$SS[s] <- nrow(dt)
   
   if(s==length(species.list_2021)){
     output_2021=data.frame(output_2021)
@@ -427,7 +429,7 @@ output_2021_MaxPrec <- output_2021_long  |>
   ) |> 
   # Filter for recall >= 0.5
   filter(recall_value > 0)  |>
-  filter(threshold %in% c("975", "99")) |> 
+  filter(threshold %in% c("95", "975", "99")) |> 
   # For each species, keep only the threshold with highest precision
   group_by(species) |> 
   filter(precision_value == max(precision_value)) |>  
@@ -450,7 +452,31 @@ output_2021_MaxPrec <- output_2021_long  |>
 ## Add in the best threshold for Raw and Conf
 output_2021_best_thresh <- output_2021 |> 
   left_join(output_2021_MaxPrec) |> 
-  select(species:cutoff_99.r_conf, BestThresh.r_conf = r_conf, BestThresh.r = r)
+  select(species:cutoff_99.r_conf, BestThresh.r_conf = r_conf, BestThresh.r = r, matches("^Precision_\\d+\\.r$"), SS)
+
+## Species-specific Priors based on validation
+# First, calculate species-specific FP rates from your threshold analysis
+fp_priors_data <- output_2021_best_thresh  |> 
+  mutate(BestThresh.r = ifelse(is.na(BestThresh.r), "99", BestThresh.r)) |> 
+  # Calculate FP rate as 1 - Precision at your selected threshold
+  mutate(
+    # For the threshold you're actually using in occupancy model
+    fp_rate_est = case_when(
+      BestThresh.r == "975" ~ 1 - Precision_975.r,
+      BestThresh.r == "99" ~ 1 - Precision_99.r
+    ),
+    # Convert to logit scale
+    logit_fp = log(fp_rate_est / (1 - fp_rate_est)),
+    # Estimate uncertainty based on sample size and precision
+    # Larger validation samples = more certain priors
+    logit_fp_se = sqrt(1 / (SS * fp_rate_est * (1 - fp_rate_est))),
+    # Convert SE to precision for nimble
+    logit_fp_precision = 1 / (logit_fp_se^2)
+  ) |> 
+  select(species, logit_fp, logit_fp_precision, fp_rate_est)
+
+# In your nimble code, replace the FP prior section with:
+
 
 ## Take the 99th scores and see what we are missing
 out99 <- output_2021_long  |> 
@@ -464,95 +490,10 @@ hist(output_2021$cutoff90.r_conf, xlab="Confidence Score", xlim=c(0,1),
 hist(output_2021$cutoff90.r[-74], xlab="Logit Score", #xlim=c(0,1),
      main="Logit score yielding pr(correct)=0.90")
 
-write.csv(output_2021, here('./Data/Thresholds_2021_20230309_AllMetrics.csv'),row.names = F)
-write.csv(output_2021_MaxPrec, here('./Data/Thresholds_2021_20230309_BestPrecRec.csv'),row.names = F)
 write.csv(output_2021_best_thresh, here('./Data/Thresholds_2021_20230309_BestThreshold_975min.csv'),row.names = F)
 output_2021[output_2021$species=="Olive-sided Flycatcher",]
 
-output_2021_Sequential.r <- output_2021_long  |> 
-  # Create temporary dataframe with precision and recall paired
-  filter(type == "r") |> 
-  group_by(species, threshold) |> 
-  mutate(
-    recall_value = value[metric == "Recall"],
-    precision_value = value[metric == "Precision"]
-  ) |> 
-  # First try threshold 99
-  group_by(species) |> 
-  mutate(
-    selected_threshold = case_when(
-      any(threshold == "99" & recall_value >= 0) ~ "99",
-      any(threshold == "975" & recall_value >= 0) ~ "975",
-      any(threshold == "95" & recall_value >= 0) ~ "95",
-      any(threshold == "90" & recall_value >= 0) ~ "90",
-      TRUE ~ NA# default if none of the above meet criteria
-    )
-  ) |> 
-  filter(threshold == selected_threshold) |> 
-  # Rest of your original code
-  arrange(species, metric, threshold)
-
-output_2021_Sequential <- output_2021_long  |> 
-  # Create temporary dataframe with precision and recall paired
-  filter(type == "c") |> 
-  group_by(species, threshold) |> 
-  mutate(
-    recall_value = value[metric == "Recall"],
-    precision_value = value[metric == "Precision"]
-  ) |> 
-  # First try threshold 99
-  group_by(species) |> 
-  mutate(
-    selected_threshold = case_when(
-      any(threshold == "99" & recall_value >= 0.1) ~ "99",
-      any(threshold == "975" & recall_value >= 0.1) ~ "975",
-      any(threshold == "95" & recall_value >= 0.1) ~ "95",
-      any(threshold == "90" & recall_value >= 0.1) ~ "90",
-      TRUE ~ NA# default if none of the above meet criteria
-    )
-  ) |> 
-  filter(threshold == selected_threshold) |> 
-  # Rest of your original code
-  arrange(species, metric, threshold) |>
-  bind_rows(output_2021_Sequential.r) |> 
-  arrange(species) |> 
-  select(-value, -metric) |> 
-  distinct(species, type, threshold, recall_value, precision_value) |> 
-  select(-recall_value, -precision_value) |> 
-  group_by(species, type) |> 
-  filter(threshold == min(as.numeric(threshold))) |> 
-  mutate(type = ifelse(type == "c", "r_conf", "r")) |> 
-  pivot_wider(names_from = type, values_from = threshold, values_fill = NA) |> 
-  ungroup()
-
-
-
-
 #################################################################################################
-
-
-
-
-save.image("BirdNET_thresholds.RData")
-
-
-library(pROC)
-
-# Create ROC object
-roc_obj <- roc(dt$correct, dt$score)
-
-# Find optimal threshold balancing sensitivity/specificity
-coords <- coords(roc_obj, "best", ret="threshold")
-
-# Plot ROC curve
-plot(roc_obj)
-points(coords[1], coords[2], pch=19, col="red")
-
-# Get various thresholds based on different criteria
-thresholds <- coords(roc_obj, x="all", ret=c("threshold", "specificity", "sensitivity"))
-
-# Find threshold that gives desired specificity
-desired_spec <- thresholds[which.min(abs(thresholds$specificity - 0.99)),]
 
 
 
