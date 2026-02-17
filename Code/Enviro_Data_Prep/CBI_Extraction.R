@@ -57,68 +57,68 @@ table(locs$srvy_yr)
 loc_option <- 2
 
 if(loc_option == 1){
-## Option 1
-## Location are represented as an average 
-locs_fixed <- locs |> 
-  select(Cell_Unit = Cll_Unt, deployment_name = dplymn_, Long, Lat) |> 
-  distinct() |> 
-  arrange(Cell_Unit) |> 
-  st_drop_geometry() |> 
-  tidyr::crossing(survey_year = 2021:2025) |> 
-  group_by(Cell_Unit, deployment_name, survey_year) |> 
-  summarise(Lat = mean(Lat),
-            Long = mean(Long)) |> 
-  st_as_sf(coords = c("Long", "Lat"), crs = 4326)
-
-locs <- locs_fixed
-print("Using the centroid value for all observations and filling.")
-
+  ## Option 1
+  ## Location are represented as an average 
+  locs_fixed <- locs |> 
+    select(Cell_Unit = Cll_Unt, deployment_name = dplymn_, Long, Lat) |> 
+    distinct() |> 
+    arrange(Cell_Unit) |> 
+    st_drop_geometry() |> 
+    tidyr::crossing(survey_year = 2021:2025) |> 
+    group_by(Cell_Unit, deployment_name, survey_year) |> 
+    summarise(Lat = mean(Lat),
+              Long = mean(Long)) |> 
+    st_as_sf(coords = c("Long", "Lat"), crs = 4326)
+  
+  locs <- locs_fixed
+  print("Using the centroid value for all observations and filling.")
+  
 } else if(loc_option == 2){
-
-## Option 2
-## Locations from the observed points are variable (accommodate shifts)
-## but the missing years are the centroid value
-
-## Observed ARU locations
-locs_obs <- locs |> 
-  select(Cell_Unit = Cll_Unt,
-         deployment_name = dplymn_,
-         survey_year = srvy_yr,
-         geometry)
-
-## Centroids to act as filler for the missing survey years
-locs_centroids <- locs_obs |> 
-  group_by(Cell_Unit, deployment_name) |> 
-  summarise(geometry = st_centroid(st_union(geometry)), .groups = "drop")
-
-## Expanded year set
-years <- tibble(survey_year = 2021:2025)
-
-site_year_grid <- locs_centroids |> 
-  tidyr::crossing(years)
-
-## Join to bring in the new sites
-locs_cent_fill <- site_year_grid |> 
-  left_join(
-    locs_obs |> rename(geometry_obs = geometry),
-    by = c("Cell_Unit", "deployment_name", "survey_year")
-  )
-
-## Replace the centroid with observed
-locs_mixed <- locs_cent_fill |> 
-  mutate(
-    geometry = if_else(
-      !st_is_empty(geometry_obs),
-      geometry_obs,
-      geometry
+  
+  ## Option 2
+  ## Locations from the observed points are variable (accommodate shifts)
+  ## but the missing years are the centroid value
+  
+  ## Observed ARU locations
+  locs_obs <- locs |> 
+    select(Cell_Unit = Cll_Unt,
+           deployment_name = dplymn_,
+           survey_year = srvy_yr,
+           geometry)
+  
+  ## Centroids to act as filler for the missing survey years
+  locs_centroids <- locs_obs |> 
+    group_by(Cell_Unit, deployment_name) |> 
+    summarise(geometry = st_centroid(st_union(geometry)), .groups = "drop")
+  
+  ## Expanded year set
+  years <- tibble(survey_year = 2021:2025)
+  
+  site_year_grid <- locs_centroids |> 
+    tidyr::crossing(years)
+  
+  ## Join to bring in the new sites
+  locs_cent_fill <- site_year_grid |> 
+    left_join(
+      locs_obs |> rename(geometry_obs = geometry),
+      by = c("Cell_Unit", "deployment_name", "survey_year")
     )
-  ) |> 
-  select(Cell_Unit, deployment_name, survey_year, geometry) |> 
-  st_as_sf()
-
-locs <- locs_mixed
-print("Filling coordinated with centroid position to deal with jitter.")
-
+  
+  ## Replace the centroid with observed
+  locs_mixed <- locs_cent_fill |> 
+    mutate(
+      geometry = if_else(
+        !st_is_empty(geometry_obs),
+        geometry_obs,
+        geometry
+      )
+    ) |> 
+    select(Cell_Unit, deployment_name, survey_year, geometry) |> 
+    st_as_sf()
+  
+  locs <- locs_mixed
+  print("Filling coordinated with centroid position to deal with jitter.")
+  
 }
 
 
@@ -163,9 +163,10 @@ aru_fire_prep <- function(fire_prod = NULL, # character vector of desired fire o
                           locs_from_cabio = T, #override flag for using CAbioacoustic locations and metadata
                           custom_locs = NULL, # Data.frame with coordinates for custom locations                          
                           survey_years = c(2021,
-                                           2022
-                                           #2023,
-                                           #2024
+                                           2022,
+                                           2023,
+                                           2024,
+                                           2025
                                            ), # Survey year is only applicable for locs_from_cabio = TRUE
                           cbi_path = NULL,
                           id_col = "deployment_name",
@@ -178,6 +179,7 @@ aru_fire_prep <- function(fire_prod = NULL, # character vector of desired fire o
                           buff_size = 120, # vector of buffer sizes
                           intervals = c("1-5", "6-10", "11-35"),
                           landscape_metrics = T,
+                          lsm_what = c("lsm_c_pland", "lsm_c_ed"),
                           allow_raster_time_gaps = FALSE
 ){
   
@@ -389,8 +391,12 @@ aru_fire_prep <- function(fire_prod = NULL, # character vector of desired fire o
                                    intervals = intervals,
                                    buff_size = buff_size,
                                    id_col = id_col,
-                                   metrics = c("lsm_c_pland", "lsm_c_ed"))
-  } else {
+                                   metrics = lsm_what)
+    
+    fire_lscp_out <- fire_lscp_out |> 
+      rename(!!sym(id_col) := plot_id)
+  
+    } else {
     fire_lscp_out <- NULL
   }
 
@@ -410,11 +416,20 @@ fire_sev21 <- aru_fire_prep(fire_prod = c("fire_severity"),
                             intervals = c("1-10"), #only interested in recent fire
                             id_col = "deployment_name",
                             buff_size = buffSize,
-                            landscape_metrics = TRUE
+                            landscape_metrics = TRUE,
+                            lsm_what = c("lsm_c_contig_mn", 
+                                         "lsm_c_pland", 
+                                         "lsm_c_ed", 
+                                         "lsm_c_frac_mn", 
+                                         # Landscape
+                                         "lsm_l_ed", 
+                                         "lsm_l_frac_mn",
+                                         "lsm_l_lsi",
+                                         "lsm_l_mutinf")
 )
 
 ## Save the R object for later
-saveRDS(fire_sev21, file = here("Data/FireMets_ARU_21_25_AllUnitsByYears.RDS"))
+saveRDS(fire_sev21, file = here("Data/FireMets_ARU_21_25_AllUnitsByYears_1_10yr.RDS"))
 
 
 
