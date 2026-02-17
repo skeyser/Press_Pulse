@@ -62,8 +62,20 @@ aprcp.path <- sort(list.files(here("Data/Spatial_Data/Climate_Anomaly_Rasters/")
 antmax.path <- sort(list.files(here("Data/Spatial_Data/Climate_Anomaly_Rasters/"), pattern = "Annual_Tmax_Anomaly*", full.names = T))
 antmin.path <- sort(list.files(here("Data/Spatial_Data/Climate_Anomaly_Rasters/"), pattern = "Annual_Tmin_Anomaly*", full.names = T))
 anprcp.path <- sort(list.files(here("Data/Spatial_Data/Climate_Anomaly_Rasters/"), pattern = "Annual_Prcp_Anomaly*", full.names = T))
+atmin.mam.path <- sort(list.files(here("Data/Spatial_Data/Climate_Anomaly_Rasters/"), pattern = "^Spring_Tmin_Anomaly*", full.names = T)) 
+aprcp.mam.path <- sort(list.files(here("Data/Spatial_Data/Climate_Anomaly_Rasters/"), pattern = "^Spring_Prcp_Anomaly*", full.names = T)) 
 
 ## Trends
+## ***********************************************************
+##
+## Section Notes:
+## Something seems suspicious
+## Summer and Spring Tmax and Tmin are identical
+## I would expect some variability
+## We see this is the Annual trends...should track for the
+## seasonal trends too
+##
+## ***********************************************************
 trtmax <- terra::rast("Data/Spatial_Data/Climate_Trend_Rasters/Tmax_Trend_Slope_1980_2020.tif")
 trtmaxmam <- terra::rast("Data/Spatial_Data/Climate_Trend_Rasters/Spring_Tmax_Trend_Slope_1980_2020.tif")
 trtmaxjja <- terra::rast("Data/Spatial_Data/Climate_Trend_Rasters/Summer_Tmax_Trend_Slope_1980_2020.tif")
@@ -144,8 +156,14 @@ static_clim_df <- locs |>
   summarise(Long = mean(Long),
             Lat = mean(Lat),
             Trend_Tmax = mean(Trend_Tmax),
+            Trend_Tmax_JJA = mean(Trend_Tmax_JJA),
+            Trend_Tmax_MAM = mean(Trend_Tmax_MAM),
             Trend_Tmin = mean(Trend_Tmin),
+            Trend_Tmin_JJA = mean(Trend_Tmin_JJA),
+            Trend_Tmin_MAM = mean(Trend_Tmin_MAM),
             Trend_Prcp = mean(Trend_Prcp),
+            Trend_Prcp_JJA = mean(Trend_Prcp_JJA),
+            Trend_Prcp_MAM = mean(Trend_Prcp_MAM),
             Tmax_Base_JJA = mean(Tmax_Baseline_JJA),
             Tmax_Base_Annual = mean(Tmax_Baseline_Annual),
             Tmin_Base_JJA = mean(Tmin_Baseline_JJA),
