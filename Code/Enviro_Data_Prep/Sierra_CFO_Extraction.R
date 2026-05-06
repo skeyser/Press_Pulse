@@ -43,6 +43,9 @@ names(cfo.r) <- gsub("CFO-California-|-Summer2020-00010m", "", names(cfo.r))
 
 plot(cfo.r)
 
+## Load in NLCD Data for 2021
+nlcd <- rast("D:/GIS_Data/NLCD/NLCD_CanopyCover_2021.tif")
+
 ## Load CFO data## Load CFrasterizeWinO data
 # cancov <- rast("C:/Users/srk252/Documents/GIS_Data/CFO/CFO-California-CanopyCover-Summer2020-00010m.tif")
 # plot(cancov)
@@ -60,6 +63,14 @@ cfo <- exact_extract(cfo.r, locs, fun = "mean")
 locs <- cbind(locs, cfo)
 
 colnames(locs) <- gsub("mean.", "", colnames(locs))
+
+## Reproject locs
+locs <- st_transform(locs, crs = crs(nlcd))
+
+## Fast extract
+nlcd <- exact_extract(nlcd, locs, fun = "mean")
+
+locs <- cbind(locs, nlcd)
 
 ## Write to file
 locs <- locs |> st_drop_geometry()
