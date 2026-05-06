@@ -180,7 +180,10 @@ aru_fire_prep <- function(fire_prod = NULL, # character vector of desired fire o
                           intervals = c("1-5", "6-10", "11-35"),
                           landscape_metrics = T,
                           lsm_what = c("lsm_c_pland", "lsm_c_ed"),
-                          allow_raster_time_gaps = FALSE
+                          allow_raster_time_gaps = FALSE,
+                          ROI = FALSE,
+                          inter.dir,
+                          hsf_only = FALSE
 ){
   
   
@@ -206,6 +209,24 @@ aru_fire_prep <- function(fire_prod = NULL, # character vector of desired fire o
   cbi_stack <- cbi_clean(cbi_path = NULL, 
                          cbi_stack_path = "D:/GIS_Data/CBI_Sierra/CBI_1985_2024_ZeroFilling_Stack_New.tif",
                          save_path = NULL)
+  
+  cbi_stack <- cbi_trim(cbi_stack = cbi_stack, survey_years = survey_years)
+
+  ## ROI
+  if(ROI == TRUE){
+    message("Clipping and masking by ROI")
+    roi <- st_read(here("./Data/Spatial_Data/Sierra_ROI.shp")) |> 
+      st_transform(crs(cbi_stack))
+    if(!is.null(buff_size)){
+      roi <- st_buffer(roi, dist = buff_size)
+    }
+    roi <- vect(roi)
+    ## Trim buffer
+    cbi_stack <- crop(cbi_stack, roi, mask = T)
+  }
+  
+  ## Clean up
+  gc()
   
   ## Project the points
   aru_locs <- st_transform(aru_locs,
@@ -266,7 +287,12 @@ aru_fire_prep <- function(fire_prod = NULL, # character vector of desired fire o
   ## Subsection: Calculate fire variables if specified
   ##
   ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-  custom_fire_mets <- create_fire_metrics(cbi_stack = cbi_stack, fire_prod = fire_prod, intervals = intervals)
+  custom_fire_mets <- create_fire_metrics(cbi_stack = cbi_stack, 
+                                          fire_prod = fire_prod, 
+                                          survey_years = survey_years, 
+                                          intervals = intervals, 
+                                          inter.dir = inter.dir,
+                                          hsf_only = hsf_only)
   
   ## Function needs to be returned but will move when code below is fixed.
   if(length(custom_fire_mets) == 0){
@@ -300,82 +326,13 @@ aru_fire_prep <- function(fire_prod = NULL, # character vector of desired fire o
   ## Subsection: Buffer Extraction from Custom Fire Variables
   ##
   ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-  
-  # if(any(fire_prod %in% c("time_since_fire", "fire_freq", "fire_ret_int"))){
-  #   variable_name <- fire_prod[!fire_prod == "fire_severity"]
-  #   fire_buff_out <- vector(mode = "list", length = length(variable_name))
-  #   
-  #   for(var in 1:length(variable_name)){
-  #     
-  #     var.tmp <- variable_name[var]
-  #     
-  #     if(var.tmp == "time_since_fire"){
-  #       fire_buff_extract <-
-  #         buff_size %>%
-  #         # create column names
-  #         str_c(var.tmp, ., sep = '_') |>
-  #         set_names() |>
-  #         map_dfr(
-  #           \(x)
-  #           exactextractr::exact_extract(
-  #             time_since_fire,
-  #             # buffer points
-  #             aru_locs |> st_buffer(as.numeric(str_extract(x, "\\d"))),
-  #             fun = 'mean'
-  #           )
-  #         ) |> 
-  #         bind_cols(st_drop_geometry(aru_locs[,id_col]))
-  #       
-  #       fire_buff_out[[var]] <- fire_buff_extract
-  #       
-  #     }
-  #     
-  #     if(var.tmp == "fire_freq"){
-  #       fire_buff_extract <-
-  #         buff_size %>%
-  #         # create column names
-  #         str_c(var.tmp, ., sep = '_') |>
-  #         set_names() |>
-  #         map_dfr(
-  #           \(x)
-  #           exactextractr::exact_extract(
-  #             fire_freq,
-  #             # buffer points
-  #             aru_locs |> st_buffer(as.numeric(str_extract(x, "\\d"))),
-  #             fun = 'mean'
-  #           )
-  #         ) |> 
-  #         bind_cols(st_drop_geometry(aru_locs[,id_col]))
-  #       
-  #       fire_buff_out[[var]] <- fire_buff_extract
-  #     }
-  #     
-  #     if(var.tmp == "fire_ret_int"){
-  #       fire_buff_extract <-
-  #         buff_size %>%
-  #         # create column names
-  #         str_c(var.tmp, ., sep = '_') |>
-  #         set_names() |>
-  #         map_dfr(
-  #           \(x)
-  #           exactextractr::exact_extract(
-  #             fire_return_int,
-  #             # buffer points
-  #             aru_locs |> st_buffer(as.numeric(str_extract(x, "\\d"))),
-  #             fun = 'mean'
-  #           )
-  #         ) |> 
-  #         bind_cols(st_drop_geometry(aru_locs[,id_col]))
-  #       
-  #       fire_buff_out[[var]] <- fire_buff_extract
-  #     }
-  #     
-  #   }
-  #   fire_buff_merge <- Reduce(function(x, y) merge(x, y, by = id_col), fire_buff_out) 
-  # } else {
-  #   fire_buff_merge <- NULL
-  # }
-  
+  if(length(custom_fire_mets) > 0){
+    fire_buff_merge <- extract_metrics(metrics_list = custom_fire_mets, 
+                                       survey_years = survey_years,
+                                       aru_locs = aru_locs,
+                                       buff_size = buff_size, id_col = id_col)
+  }
+
   ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   ##
   ## Subsection: Landscape Metrics
@@ -409,27 +366,38 @@ aru_fire_prep <- function(fire_prod = NULL, # character vector of desired fire o
 ## Set the buffer size
 buffSize <- 500
 
-fire_sev21 <- aru_fire_prep(fire_prod = c("fire_severity"),
-                            locs_from_cabio = FALSE,
-                            custom_locs = locs,
-                            survey_years = c(2021, 2022, 2023, 2024, 2025),
-                            intervals = c("1-10"), #only interested in recent fire
-                            id_col = "deployment_name",
-                            buff_size = buffSize,
-                            landscape_metrics = TRUE,
-                            lsm_what = c("lsm_c_contig_mn", 
-                                         "lsm_c_pland", 
-                                         "lsm_c_ed", 
-                                         "lsm_c_frac_mn", 
-                                         # Landscape
-                                         "lsm_l_ed", 
-                                         "lsm_l_frac_mn",
-                                         "lsm_l_lsi",
-                                         "lsm_l_mutinf")
+fire_out <- aru_fire_prep(fire_prod = c("fire_frequency"),
+                          locs_from_cabio = FALSE,
+                          custom_locs = locs,
+                          survey_years = c(2021, 2022, 2023, 2024, 2025),
+                          intervals = c("1-40"), #only interested in recent fire
+                          id_col = "deployment_name",
+                          buff_size = buffSize,
+                          landscape_metrics = FALSE,
+                          lsm_what = c(#"lsm_c_contig_mn", 
+                                       "lsm_c_pland" 
+                                       #"lsm_c_ed", 
+                                       #"lsm_c_frac_mn", 
+                                       # Landscape
+                                       #"lsm_l_ed", 
+                                       #"lsm_l_frac_mn",
+                                       #"lsm_l_lsi",
+                                       #"lsm_l_mutinf"
+                                       ),
+                          ROI = TRUE,
+                          inter.dir = "D:/GIS_Data/Temp_Rast/",
+                          hsf_only = TRUE
 )
 
+fsev <- fire_out$FireSeverity 
+tsf <- fire_out$FireMetrics
+lscp <- fire_out$FireLscp
+
+fire_out$FireLscp <- lscp
+
+
 ## Save the R object for later
-saveRDS(fire_sev21, file = here("Data/FireMets_ARU_21_25_AllUnitsByYears_1_10yr.RDS"))
+saveRDS(fire_out, file = here("Data/FireMets_ARU_21_25_AllUnitsByYears_PLAND_FireSev_1985_2024.RDS"))
 
 
 

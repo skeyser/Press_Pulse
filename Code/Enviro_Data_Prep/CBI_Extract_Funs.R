@@ -148,10 +148,9 @@ validate_inputs <- function(fire_prod, locs_from_cabio, custom_locs, survey_year
 ##
 ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 cbi_trim <- function(cbi_stack, survey_years){
-  max_fire_year <- max(as.numeric(names(cbi_stack)))
   max_survey_year <- max(survey_years)
-  cbi_stack <- cbi_stack[[as.numeric(names(cbi_stack)) < max_survey_year]]
-  return(cbi_stack)
+  keep_indices <- which(as.numeric(names(cbi_stack)) < max_survey_year)
+  return(terra::subset(cbi_stack, keep_indices))
 }
 
 
@@ -553,7 +552,7 @@ fire_lscp_fun <- function(ras_int,
                           id_col,
                           metrics){
   
-  for(i in 1:length(ras_int)){
+  for(i in 1:length(years)){
     
     print(paste("Year:", years[i]))
     
@@ -602,7 +601,7 @@ fire_lscp_fun <- function(ras_int,
         ungroup()
       
       ## Fix layer names
-      lyr_map <- data.frame(layer = 1:nlyr(ras_lcpc), lyr_name = intervals)
+      lyr_map <- data.frame(layer = 1:nlyr(ras_lcpc), lyr_name = names(ras_lcpc))
       
       ## Merge these
       lsm <- left_join(lsm, lyr_map)
@@ -659,7 +658,8 @@ fire_lscp_fun <- function(ras_int,
     if(i == 1){
       lsm_out <- lsm
     } else {
-      lsm_out <- rbind(lsm_out, lsm)
+      ## dplyr::bind_rows has preffered behavior to rbind
+      lsm_out <- dplyr::bind_rows(lsm_out, lsm)
     }
     
   }
@@ -678,6 +678,16 @@ fire_lscp_fun <- function(ras_int,
 ## Subsection: Year of most recent fire
 ##
 ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+## Potential improvements
+## For each year assign the fires a simple year estimate
+## 40 rasters with values (Year, NA)
+## Trim the rasters based on the survey year max Year Stack < Survey Year
+## DiffRasStack = Survey Year - Each image
+## Min(DiffRasStacl) == Most Recent Fire rel survey year
+## NA -> Min year 
+## Repeat each survey year
+
 ## Fire variables
 ## Time since fire
 time_to_most_recent_fire <- function(cell_values, years) {
@@ -703,37 +713,160 @@ time_to_most_recent_fire <- function(cell_values, years) {
   return(max_year - min(years))
 }
 
+# ## Optimized time_to_most_recent_fire function
+# create_last_fire_raster <- function(cbi_stack, temp.dir = NULL) {
+#   
+#   if(is.null(temp.dir)){
+#     message("Custom fire metrics running without temp dir. \nFunction might fail without adequate RAM.")
+#   }
+#   
+#   years <- as.numeric(names(cbi_stack))
+#   
+#   # Create year rasters (each layer contains its year value where fires occurred)
+#   year_rasters <- list()
+#   # for(i in 1:nlyr(cbi_stack)) {
+#   #   year_rasters[[i]] <- terra::ifel(cbi_stack[[i]] > 0, years[i], NA)
+#   # }
+#   
+#   for(i in 1:nlyr(cbi_stack)) {
+#     ## Classification matrix
+#     rcl_matrix <- matrix(c(
+#       -Inf, 0, NA,      
+#       0, Inf, years[i]
+#     ), ncol = 3, byrow = TRUE)
+#     
+#     year_rasters[[i]] <- terra::classify(cbi_stack[[i]], rcl_matrix, include.lowest = FALSE)
+#     
+#     ## Clean in between iterations
+#     gc()
+#   }
+#   
+#   # Stack and find maximum (most recent) year
+#   year_stack <- do.call(c, year_rasters)
+#   #last_fire_year <- terra::app(year_stack, fun = max, na.rm = TRUE)
+#   
+#   if(!is.null(temp.dir)){
+#     
+#     ## Write the stack to avoid memory bog
+#     print(paste0("Writing intermediate raster to temp directory specified: ", temp.dir))
+#     writeRaster(year_stack, filename = paste0(temp.dir, "FiresAsYears.tif"), overwrite = TRUE)
+#     
+#     ## Remove and clean
+#     remove(year_stack, year_rasters)
+#   } else {
+#     return(year_stack)
+#   }
+#   gc()
+#   
+# }
+
 ## Optimized time_to_most_recent_fire function
-create_last_fire_raster <- function(cbi_stack) {
+create_last_fire_raster <- function(cbi_stack, temp.dir = NULL, hsf_only = FALSE) {
+  
   years <- as.numeric(names(cbi_stack))
   
-  # Create year rasters (each layer contains its year value where fires occurred)
-  year_rasters <- list()
-  for(i in 1:nlyr(cbi_stack)) {
-    year_rasters[[i]] <- terra::ifel(cbi_stack[[i]] > 0, years[i], NA)
+  if(is.null(temp.dir)){
+    message("Custom fire metrics running without temp dir. \nFunction might fail without adequate RAM.")
+    
+    # MEMORY-INTENSIVE APPROACH (your original)
+    year_rasters <- list()
+    
+    for(i in 1:nlyr(cbi_stack)) {
+      ## Classification matrix
+      if(!hsf_only){
+        if(i == 1){message("Using all CBI classes.")}
+        rcl_matrix <- matrix(c(
+          -Inf, 0, NA,      
+          0, Inf, years[i]
+        ), ncol = 3, byrow = TRUE)
+      } else {
+        if(i == 1){message("High-severity fire only.")}
+        rcl_matrix <- matrix(c(
+          -Inf, 2, NA,      
+          2, Inf, years[i]
+        ), ncol = 3, byrow = TRUE)
+      }
+      
+      year_rasters[[i]] <- terra::classify(cbi_stack[[i]], rcl_matrix, include.lowest = FALSE)
+      
+      ## Clean in between iterations
+      gc()
+    }
+    
+    # Stack and find maximum (most recent) year
+    year_stack <- do.call(c, year_rasters)
+    return(year_stack)
+    
+  } else {
+    message("Using file-based approach with temp directory: ", temp.dir)
+    
+    # Create directory if needed
+    dir.create(temp.dir, showWarnings = FALSE, recursive = TRUE)
+    
+    # Pre-allocate file paths
+    temp_files <- character(nlyr(cbi_stack))
+    
+    for(i in 1:nlyr(cbi_stack)) {
+      message(paste("Processing layer", i, "of", nlyr(cbi_stack), "- Year:", years[i]))
+      
+      ## Classification matrix
+      if(!hsf_only){
+        if(i == 1){message("Using all CBI classes.")}
+        rcl_matrix <- matrix(c(
+          -Inf, 0, NA,      
+          0, Inf, years[i]
+        ), ncol = 3, byrow = TRUE)
+      } else {
+        if(i == 1){message("High-severity fire only.")}
+        rcl_matrix <- matrix(c(
+          -Inf, 2, NA,      
+          2, Inf, years[i]
+        ), ncol = 3, byrow = TRUE)
+      }
+      
+      # Create file path for this layer
+      temp_files[i] <- file.path(temp.dir, paste0("fire_year_", years[i], ".tif"))
+      
+      # Save directly to file (avoids memory buildup)
+      terra::classify(cbi_stack[[i]], rcl_matrix, 
+                      filename = temp_files[i],
+                      include.lowest = FALSE, 
+                      overwrite = TRUE)
+    }
+    return(temp_files)
   }
   
-  # Stack and find maximum (most recent) year
-  year_stack <- do.call(c, year_rasters)
-  last_fire_year <- terra::app(year_stack, fun = max, na.rm = TRUE)
-  
-  return(last_fire_year)
+  gc()
 }
 
-time_since_fire_from_last_fire <- function(last_fire_raster, survey_year, full_cbi_stack) {
+
+time_since_fire <- function(last_fire_raster, survey_year) {
+  if(is.character(class(last_fire_raster))){
+    message("last_fire_raster variable is file paths. \nReading files as stack.")
+    last_fire_raster <- rast(last_fire_raster)
+  }
+  ## Use trimming to restrict to the current survey year of interest
+  message("Trimming")
+  cbi_tsf <- cbi_trim(cbi_stack = last_fire_raster, survey_years = survey_year)
   
-  # Calculate time since fire for this specific survey year
-  time_since_fire_raster <- survey_year - last_fire_raster
+  ## Find the difference between survey year and all fires
+  message("TSF for all years")
+  cbi_tsf <- survey_year - cbi_tsf
   
-  # Handle areas with no fires - set to full time period
-  full_period <- survey_year - min(as.numeric(names(full_cbi_stack)))
-  time_since_fire_raster <- terra::ifel(is.na(time_since_fire_raster), full_period, time_since_fire_raster)
+  ## Find the minimum difference across all layers
+  message("Calculating Mininmum TSF")
+  cbi_tsf <- terra::app(cbi_tsf, fun = min, na.rm = TRUE)
+  
+  ## Handle areas with no fires - set to full time period -1 year to avoid confounding
+  ## sites with older fire and sites with no fires 
+  message("Calculating TSF")
+  max_tsf <- survey_year - (min(as.numeric(names(last_fire_raster)))-1)
+  
+  message("Filling NAs with max year between survey date and last year of CBI.")
+  time_since_fire_raster <- terra::ifel(is.na(cbi_tsf), max_tsf, cbi_tsf)
   
   return(time_since_fire_raster)
 }
-
-last_fire_raster <- create_last_fire_raster(cbi_stack)
-tsf <- time_since_fire_from_last_fire(last_fire_raster = last_fire_raster, survey_year = survey_year, cbi_stack)
 
 ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 ##
@@ -745,10 +878,15 @@ tsf <- time_since_fire_from_last_fire(last_fire_raster = last_fire_raster, surve
 # Create the function to calculate time since the most recent event for each cell
 fire_freq_calc <- function(cell_values, years) {
   
-  # Check if there are any 1s in the cell
-  if (any(cell_values > 0)) {
-    
-    # Find the most recent occurrence of 1 (event) - we look for the last occurrence of 1
+  # Check for fires, handling NAs
+  has_fires <- any(cell_values > 0, na.rm = TRUE)
+  
+  if (is.na(has_fires)) {
+    # All values are NA
+    return(0)  # or return(NA) if you prefer
+  }
+  
+  if (has_fires) {
     fire_years <- years[which(cell_values > 0)]
     num_fires <- length(fire_years)
     num_years <- length(years)
@@ -756,7 +894,6 @@ fire_freq_calc <- function(cell_values, years) {
     fire_freq <- num_fires / num_years
     
   } else {
-    # If no event occurred, return 0
     fire_freq <- 0
   }
   
@@ -801,127 +938,16 @@ fire_return_int <- function(cell_values, years){
 ##
 ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-# create_fire_metrics <- function(cbi_stack, fire_prod, intervals) {
-#   
-#   if(!is.null(intervals)){
-#     message("Intervals are set. Time since fire, fire frequency, and fire return interval don't accept intervals...output will be generated from single years for all CBI years provided.")
-#   }
-#   
-#   metrics_list <- list()
-#   
-#   # Map of metric names to their functions
-#   metric_functions <- list(
-#     "time_since_fire" = time_to_most_recent_fire,
-#     "fire_freq" = fire_freq_calc,
-#     "fire_ret_int" = fire_return_int
-#   )
-#   
-#   # Create each requested metric
-#   for(metric in fire_prod) {
-#     if(metric %in% names(metric_functions)) {
-#       metrics_list[[metric]] <- terra::app(
-#         cbi_stack,
-#         fun = function(x) metric_functions[[metric]](
-#           cell_values = x,
-#           years = as.numeric(names(cbi_stack))
-#         )
-#       )
-#     }
-#   }
-#   
-#   return(metrics_list)
-# }
-
-# create_fire_metrics <- function(cbi_stack, fire_prod, survey_years, intervals = NULL) {
-#   
-#   if(!is.null(intervals)){
-#     message("Intervals are set. Time since fire, fire frequency, and fire return interval don't accept intervals...output will be generated from single years for all CBI years provided.")
-#   }
-#   
-#   if(length(fire_prod[!fire_prod %in% "fire_severity"]) == 0) {
-#     message("No custom fire metrics requested.")
-#     return(list())
-#   }
-#   
-#   # Filter to only the custom fire products (not fire_severity)
-#   custom_products <- fire_prod[!fire_prod %in% "fire_severity"]
-#   
-#   metrics_by_year <- list()
-#   
-#   # Pre-compute the last fire raster once if time_since_fire is requested
-#   last_fire_raster <- NULL
-#   if("time_since_fire" %in% custom_products) {
-#     message("Pre-computing last fire raster (one-time calculation)...")
-#     last_fire_raster <- create_last_fire_raster(cbi_stack)
-#     ## Clear memory
-#     gc()
-#   }
-#   
-#   # Map of metric names to their functions (excluding time_since_fire)
-#   metric_functions <- list(
-#     "fire_freq" = fire_freq_calc,
-#     "fire_ret_int" = fire_return_int
-#   )
-#   
-#   # Iterate through each survey year
-#   for(survey_year in survey_years) {
-#     message(paste("Creating fire metrics for survey year:", survey_year))
-#     
-#     year_metrics <- list()
-#     
-#     # Handle time_since_fire with optimized approach (no trimming needed)
-#     if("time_since_fire" %in% custom_products) {
-#       message(paste("  - Calculating time_since_fire"))
-#       year_metrics[["time_since_fire"]] <- time_since_fire_from_last_fire(
-#         last_fire_raster = last_fire_raster, 
-#         survey_year = survey_year, 
-#         full_cbi_stack = cbi_stack
-#       )
-#       names(year_metrics[["time_since_fire"]]) <- paste0("time_since_fire_", survey_year)
-#       ## Clear memory
-#       gc()
-#     }
-#     
-#     # Handle other metrics that need trimmed stacks and terra::app
-#     other_products <- custom_products[!custom_products %in% "time_since_fire"]
-#     
-#     if(length(other_products) > 0) {
-#       # Trim stack for this specific survey year (only for other metrics)
-#       cbi_trimmed <- cbi_trim(cbi_stack = cbi_stack, survey_years = survey_year)
-#       
-#       if(is.null(cbi_trimmed)) {
-#         warning(paste("No fire data available for survey year:", survey_year))
-#       } else {
-#         # Create each other requested metric for this survey year
-#         for(metric in other_products) {
-#           if(metric %in% names(metric_functions)) {
-#             
-#             message(paste("  - Calculating", metric))
-#             
-#             year_metrics[[metric]] <- terra::app(
-#               cbi_trimmed,
-#               fun = function(x) metric_functions[[metric]](
-#                 cell_values = x,
-#                 years = as.numeric(names(cbi_trimmed))
-#               )
-#             )
-#             
-#             # Name the raster layer
-#             names(year_metrics[[metric]]) <- paste0(metric, "_", survey_year)
-#           }
-#         }
-#       }
-#     }
-#     
-#     # Store metrics for this survey year
-#     metrics_by_year[[as.character(survey_year)]] <- year_metrics
-#   }
-#   
-#   return(metrics_by_year)
-# }
+## WIP for fire freq and fire return int with multi-year data
+## TSF is working
 
 ## Deal with issues in the shifting years
-create_fire_metrics <- function(cbi_stack, fire_prod, survey_years, intervals = NULL) {
+create_fire_metrics <- function(cbi_stack, 
+                                fire_prod, 
+                                survey_years, 
+                                intervals = NULL, 
+                                inter.dir = NULL,
+                                hsf_only = FALSE) {
   
   if(!is.null(intervals)){
     message("Intervals are set. Time since fire, fire frequency, and fire return interval don't accept intervals...output will be generated from single years for all CBI years provided.")
@@ -932,55 +958,71 @@ create_fire_metrics <- function(cbi_stack, fire_prod, survey_years, intervals = 
     return(list())
   }
   
-  # Filter to only the custom fire products (not fire_severity)
+  ## Filter products
   custom_products <- fire_prod[!fire_prod %in% "fire_severity"]
   
   metrics_by_year <- list()
   
-  # Map of metric names to their functions (excluding time_since_fire)
+  ## Map functions except tsf for now
   metric_functions <- list(
     "fire_freq" = fire_freq_calc,
     "fire_ret_int" = fire_return_int
   )
   
-  # Iterate through each survey year
+  ## Pre-compute year stack
+  last_fire_raster <- NULL
+  if("time_since_fire" %in% custom_products) {
+    message("Pre-computing last fire raster (one-time calculation)...")
+    if(!is.null(inter.dir)){
+      message("Creating intermediate files.")
+      last_fire_raster <- create_last_fire_raster(cbi_stack, 
+                                                  temp.dir = inter.dir,
+                                                  hsf_only = hsf_only)
+    } else {
+      message("Proceeding with memory intensive process.")
+      last_fire_raster <- create_last_fire_raster(cbi_stack, 
+                                                  temp.dir = inter.dir,
+                                                  hsf_only = hsf_only)
+    }
+  }
+  
+  ## Iterate through each survey year
   for(survey_year in survey_years) {
     message(paste("Creating fire metrics for survey year:", survey_year))
     
     year_metrics <- list()
     
-    # Handle time_since_fire with survey-year-specific approach
+    ## Handle time_since_fire with survey-year-specific approach
     if("time_since_fire" %in% custom_products) {
       message(paste("  - Calculating time_since_fire"))
       
-      # CRITICAL: Trim stack to only years up to survey year
-      all_years <- as.numeric(names(cbi_stack))
-      valid_years_idx <- which(all_years <= survey_year)
+      # ## Trim stack to only years up to survey year to avoid
+      # ## misaligned years
+      # all_years <- as.numeric(names(cbi_stack))
+      # valid_years_idx <- which(all_years <= survey_year)
+      # 
+      # if(length(valid_years_idx) == 0) {
+      #   warning(paste("No fire data available for years up to survey year:", survey_year))
+      #   next
+      # }
+      # 
+      # ## Create trimmed stack for this survey year
+      # cbi_up_to_survey <- cbi_stack[[valid_years_idx]]
       
-      if(length(valid_years_idx) == 0) {
-        warning(paste("No fire data available for years up to survey year:", survey_year))
-        next
-      }
+      ## Create last fire raster using only years up to survey year
+      # last_fire_raster <- create_last_fire_raster(cbi_up_to_survey)
       
-      # Create trimmed stack for this survey year
-      cbi_up_to_survey <- cbi_stack[[valid_years_idx]]
-      
-      # Create last fire raster using ONLY years up to survey year
-      last_fire_raster <- create_last_fire_raster(cbi_up_to_survey)
-      
-      year_metrics[["time_since_fire"]] <- time_since_fire_from_last_fire(
+      year_metrics[["time_since_fire"]] <- time_since_fire(
         last_fire_raster = last_fire_raster, 
-        survey_year = survey_year, 
-        full_cbi_stack = cbi_up_to_survey  # Use the trimmed stack here too
+        survey_year = survey_year
       )
       names(year_metrics[["time_since_fire"]]) <- paste0("time_since_fire_", survey_year)
       
-      # Clean up
-      rm(last_fire_raster, cbi_up_to_survey)
+      ## Clean up
       gc()
     }
     
-    # Handle other metrics that need trimmed stacks and terra::app
+    ## Handle other metrics that need trimmed stacks and terra::app
     other_products <- custom_products[!custom_products %in% "time_since_fire"]
     
     if(length(other_products) > 0) {
@@ -1024,68 +1066,58 @@ create_fire_metrics <- function(cbi_stack, fire_prod, survey_years, intervals = 
   return(metrics_by_year)
 }
 
-## Test
-#test <- create_fire_metrics(cbi_stack = cbi_stack, fire_prod = fire_prod, survey_years = survey_years)
-
-## Test Code Below 
-
-#################################################################
-#################################################################
-#########################WIP#####################################
-#################################################################
-#################################################################
-
 ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 ##
 ## Subsection: Fire metrics with buffer
 ##
 ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-extract_metrics_with_buffer <- function(metrics_list, aru_locs, buff_size, id_col) {
-  # Create buffer
-  aru_buffer <- sf::st_buffer(aru_locs, dist = buff_size)
+
+extract_metrics <- function(metrics_list, aru_locs, survey_years, buff_size = NULL, id_col) {
   
-  # Extract each metric
-  metric_results <- lapply(names(metrics_list), function(metric_name) {
-    result <- exactextractr::exact_extract(
-      metrics_list[[metric_name]],
-      aru_buffer,
-      fun = "mean",
-      append_cols = id_col
-    )
+  ## Check buff_size
+  if (!is.null(buff_size)) {
+    extraction_geom <- sf::st_buffer(aru_locs, dist = buff_size)
+    fun_type <- "mean"
+  } else {
+    extraction_geom <- aru_locs
+    fun_type <- "mean"
+  }
+  
+  ## Initialize list to collect all metrics across years
+  all_metrics <- list()
+  
+  ## Loop through years
+  for(year in survey_years) {
     
-    # Rename column
-    names(result)[names(result) == "mean"] <- metric_name
-    return(result)
-  })
-  
-  # Combine all metrics
-  final_result <- Reduce(function(x, y) merge(x, y, by = id_col), metric_results)
-  return(final_result)
-}
-
-
-## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-##
-## Subsection: Fire metrics without buffer
-##
-## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-extract_metrics_without_buffer <- function(metrics_list, aru_locs) {
-  # Extract each metric
-  metric_results <- lapply(names(metrics_list), function(metric_name) {
-    result <- terra::extract(
-      metrics_list[[metric_name]],
-      aru_locs,
-      bind = TRUE
-    )
+    ## Get yearly metrics
+    year_metrics <- metrics_list[[as.character(year)]]
     
-    # Convert to sf and rename column
-    result <- sf::st_as_sf(result)
-    names(result)[names(result) == "value"] <- metric_name
-    return(result)
-  })
+    ## Filter geometry to this year's locations
+    extraction_geom_year <- extraction_geom[extraction_geom$survey_year == year, ]
+    
+    ## Skip no data
+    if(nrow(extraction_geom_year) == 0 || is.null(year_metrics)) next
+    
+    ## Extract each metric for this year
+    for(metric_name in names(year_metrics)) {
+      
+      result <- exactextractr::exact_extract(
+        year_metrics[[metric_name]],
+        extraction_geom_year,
+        fun = fun_type,
+        append_cols = id_col
+      )
+      
+      ## Create unique metric name with year
+      final_metric_name <- paste0(metric_name, "_", year)
+      names(result)[names(result) == fun_type] <- final_metric_name
+      
+      ## Store in collection
+      all_metrics[[final_metric_name]] <- result
+    }
+  }
   
-  # Combine all metrics
-  final_result <- Reduce(function(x, y) merge(x, y, by = c(id_col, "geometry")), metric_results)
+  ## Combine all metrics
+  final_result <- Reduce(function(x, y) merge(x, y, by = id_col, all = TRUE), all_metrics)
   return(final_result)
 }
