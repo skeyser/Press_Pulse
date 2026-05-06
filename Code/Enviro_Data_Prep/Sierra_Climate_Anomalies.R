@@ -41,31 +41,100 @@ library(exactextractr)
 ##
 ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-## Long-term baseline climate
-btmax <- terra::rast("Data/Spatial_Data/Climate_Anomaly_Rasters/Tmax_Baseline_1980_2010.tif")
+## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+##
+## Subsection: Long-term baseline climate
+##
+## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+## Tmax
+btmax.jja <- terra::rast("Data/Spatial_Data/Climate_Anomaly_Rasters/Tmax_Baseline_1980_2010.tif")
 btmax.ann <- terra::rast("Data/Spatial_Data/Climate_Anomaly_Rasters/Annual_Tmax_Baseline_1980_2010.tif")
-btmin <- terra::rast("Data/Spatial_Data/Climate_Anomaly_Rasters/Tmin_Baseline_1980_2010.tif")
-tmin.ann <- terra::rast("Data/Spatial_Data/Climate_Anomaly_Rasters/Annual_Tmin_Baseline_1980_2010.tif")
-bpcp <- terra::rast("Data/Spatial_Data/Climate_Anomaly_Rasters/Precip_Baseline_1980_2010.tif")
+btmax.mam <- terra::rast("Data/Spatial_Data/Climate_Anomaly_Rasters/Spring_Tmax_Mean_Anomaly_2011_2024.tif")
+
+## Tmin
+btmin.jja <- terra::rast("Data/Spatial_Data/Climate_Anomaly_Rasters/Tmin_Baseline_1980_2010.tif")
+btmin.ann <- terra::rast("Data/Spatial_Data/Climate_Anomaly_Rasters/Annual_Tmin_Baseline_1980_2010.tif")
+btmin.mam <- terra::rast("Data/Spatial_Data/Climate_Anomaly_Rasters/Spring_Tmin_Baseline_1980_2010.tif")
+
+## Precip
+bpcp.jja <- terra::rast("Data/Spatial_Data/Climate_Anomaly_Rasters/Precip_Baseline_1980_2010.tif")
 bpcp.ann <- terra::rast("Data/Spatial_Data/Climate_Anomaly_Rasters/Annual_Prcp_Baseline_1980_2010.tif")
+bpcp.mam <- terra::rast("Data/Spatial_Data/Climate_Anomaly_Rasters/Spring_Prcp_Baseline_1980_2010.tif")
 
-
-
-bclim <- c(btmax, btmin, bpcp, btmax.ann, tmin.ann, bpcp.ann)
-names(bclim) <- c("Tmax_Baseline_JJA", "Tmin_Baseline_JJA", "Prcp_Baseline_JJA", "Tmax_Baseline_Annual", "Tmin_Baseline_Annual", "Prcp_Baseline_Annual")
+## Stack baseline rasters together
+## Should have 9 - Summer, Spring, and Annual x tmin, tmax, precip
+bclim <- c(btmax.jja, btmax.mam, btmax.ann,
+           btmin.jja, btmin.mam, btmin.ann,
+           bpcp.jja, bpcp.mam, bpcp.ann)
+names(bclim) <- c("Tmax_Baseline_JJA", "Tmax_Baseline_MAM", "Tmax_Baseline_Annual", 
+                  "Tmin_Baseline_JJA", "Tmin_Baseline_MAM", "Tmin_Baseline_Annual", 
+                  "Prcp_Baseline_JJA", "Prcp_Baseline_MAM", "Prcp_Baseline_Annual")
 plot(bclim)
 
+rsamp <- spatSample(bclim, size = 5000, na.rm = T)
+cor(rsamp) |> corrplot::corrplot(method = "number")
+
+## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+##
+## Subsection: Yearly Anomalies
+##
+## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 ## Order the .tifs for the anomalies by date
-atmax.path <- sort(list.files(here("Data/Spatial_Data/Climate_Anomaly_Rasters/"), pattern = "^Tmax_Anomaly*", full.names = T))
-atmin.path <- sort(list.files(here("Data/Spatial_Data/Climate_Anomaly_Rasters/"), pattern = "^Tmin_Anomaly*", full.names = T))
-aprcp.path <- sort(list.files(here("Data/Spatial_Data/Climate_Anomaly_Rasters/"), pattern = "^Precip_Anomaly*", full.names = T))
-antmax.path <- sort(list.files(here("Data/Spatial_Data/Climate_Anomaly_Rasters/"), pattern = "Annual_Tmax_Anomaly*", full.names = T))
-antmin.path <- sort(list.files(here("Data/Spatial_Data/Climate_Anomaly_Rasters/"), pattern = "Annual_Tmin_Anomaly*", full.names = T))
-anprcp.path <- sort(list.files(here("Data/Spatial_Data/Climate_Anomaly_Rasters/"), pattern = "Annual_Prcp_Anomaly*", full.names = T))
+atmax.jja.path <- sort(list.files(here("Data/Spatial_Data/Climate_Anomaly_Rasters/"), pattern = "^Tmax_Anomaly*", full.names = T))
+atmin.jja.path <- sort(list.files(here("Data/Spatial_Data/Climate_Anomaly_Rasters/"), pattern = "^Tmin_Anomaly*", full.names = T))
+aprcp.jja.path <- sort(list.files(here("Data/Spatial_Data/Climate_Anomaly_Rasters/"), pattern = "^Precip_Anomaly*", full.names = T))
+
+atmax.ann.path <- sort(list.files(here("Data/Spatial_Data/Climate_Anomaly_Rasters/"), pattern = "Annual_Tmax_Anomaly*", full.names = T))
+atmin.ann.path <- sort(list.files(here("Data/Spatial_Data/Climate_Anomaly_Rasters/"), pattern = "Annual_Tmin_Anomaly*", full.names = T))
+aprcp.ann.path <- sort(list.files(here("Data/Spatial_Data/Climate_Anomaly_Rasters/"), pattern = "Annual_Prcp_Anomaly*", full.names = T))
+
 atmin.mam.path <- sort(list.files(here("Data/Spatial_Data/Climate_Anomaly_Rasters/"), pattern = "^Spring_Tmin_Anomaly*", full.names = T)) 
 aprcp.mam.path <- sort(list.files(here("Data/Spatial_Data/Climate_Anomaly_Rasters/"), pattern = "^Spring_Prcp_Anomaly*", full.names = T)) 
+atmax.mam.path <- sort(list.files(here("Data/Spatial_Data/Climate_Anomaly_Rasters/"), pattern = "^Spring_Tmax_Anomaly*", full.names = T))
 
-## Trends
+## read in the tifs
+## Tmax
+tmax.jja.anom.r <- rast(lapply(atmax.jja.path, rast))
+tmax.mam.anom.r <- rast(lapply(atmax.mam.path, rast))
+tmax.ann.anom.r <- rast(lapply(atmax.ann.path, rast))
+
+## Tmin
+tmin.jja.anom.r <- rast(lapply(atmin.jja.path, rast))
+tmin.mam.anom.r <- rast(lapply(atmin.mam.path, rast))
+tmin.ann.anom.r <- rast(lapply(atmin.ann.path, rast))
+
+## Precip
+prcp.jja.anom.r <- rast(lapply(aprcp.jja.path, rast))
+prcp.mam.anom.r <- rast(lapply(aprcp.mam.path, rast))
+prcp.ann.anom.r <- rast(lapply(aprcp.ann.path, rast))
+
+## Stack
+anom.r <- c(#Tmax
+            tmax.jja.anom.r,
+            tmax.mam.anom.r,
+            tmax.ann.anom.r,
+            
+            ## Tmin
+            tmin.jja.anom.r,
+            tmin.mam.anom.r,
+            tmin.ann.anom.r,
+            
+            ## Precip
+            prcp.jja.anom.r,
+            prcp.mam.anom.r,            
+            prcp.ann.anom.r
+)
+
+## Give informative names
+names(anom.r) <- stringr::str_extract(sources(anom.r), 
+                                      pattern = "Tmax_Anomaly_\\d{4}|Tmin_Anomaly_\\d{4}|Precip_Anomaly_\\d{4}|Annual_Tmax_Anomaly_\\d{4}|Annual_Tmin_Anomaly_\\d{4}|Annual_Prcp_Anomaly_\\d{4}|Spring_Tmax_Anomaly_\\d{4}|Spring_Tmin_Anomaly_\\d{4}|Spring_Prcp_Anomaly_\\d{4}")
+
+## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+##
+## Subsection: Trend Rasters
+##
+## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 ## ***********************************************************
 ##
 ## Section Notes:
@@ -76,36 +145,40 @@ aprcp.mam.path <- sort(list.files(here("Data/Spatial_Data/Climate_Anomaly_Raster
 ## seasonal trends too
 ##
 ## ***********************************************************
-trtmax <- terra::rast("Data/Spatial_Data/Climate_Trend_Rasters/Tmax_Trend_Slope_1980_2020.tif")
-trtmaxmam <- terra::rast("Data/Spatial_Data/Climate_Trend_Rasters/Spring_Tmax_Trend_Slope_1980_2020.tif")
-trtmaxjja <- terra::rast("Data/Spatial_Data/Climate_Trend_Rasters/Summer_Tmax_Trend_Slope_1980_2020.tif")
-trtmin <- terra::rast("Data/Spatial_Data/Climate_Trend_Rasters/Tmin_Trend_Slope_1980_2020.tif")
-trtminmam <- terra::rast("Data/Spatial_Data/Climate_Trend_Rasters/Spring_Tmax_Trend_Slope_1980_2020.tif")
-trtminjja <- terra::rast("Data/Spatial_Data/Climate_Trend_Rasters/Summer_Tmax_Trend_Slope_1980_2020.tif")
-trprcp <- terra::rast("Data/Spatial_Data/Climate_Trend_Rasters/Ppt_Trend_Slope_1980_2020.tif")
-trprcpmam <- terra::rast("Data/Spatial_Data/Climate_Trend_Rasters/Spring_Ppt_Trend_Slope_1980_2020.tif")
-trprcpjja <- terra::rast("Data/Spatial_Data/Climate_Trend_Rasters/Summer_Ppt_Trend_Slope_1980_2020.tif")
 
-trends <- c(trtmax, trtmaxmam, trtmaxjja,
-            trtmin, trtminmam, trtminjja,
-            trprcp, trprcpmam, trprcpjja)
-names(trends) <- c("Trend_Tmax", "Trend_Tmax_MAM", "Trend_Tmax_JJA", 
-                   "Trend_Tmin", "Trend_Tmin_MAM", "Trend_Tmin_JJA",
-                   "Trend_Prcp", "Trend_Prcp_MAM", "Trend_Prcp_JJA")
+## Tmax
+trtmax.ann <- terra::rast("Data/Spatial_Data/Climate_Trend_Rasters/Tmax_Trend_Slope_1980_2020.tif")
+trtmax.mam <- terra::rast("Data/Spatial_Data/Climate_Trend_Rasters/Spring_Tmax_Trend_Slope_1980_2020.tif")
+trtmax.jja <- terra::rast("Data/Spatial_Data/Climate_Trend_Rasters/Summer_Tmax_Trend_Slope_1980_2020.tif")
+
+## Tmin
+trtmin.ann <- terra::rast("Data/Spatial_Data/Climate_Trend_Rasters/Tmin_Trend_Slope_1980_2020.tif")
+trtmin.mam <- terra::rast("Data/Spatial_Data/Climate_Trend_Rasters/Spring_Tmin_Trend_Slope_1980_2020.tif")
+trtmin.jja <- terra::rast("Data/Spatial_Data/Climate_Trend_Rasters/Summer_Tmin_Trend_Slope_1980_2020.tif")
+
+## Precip
+trprcp.ann <- terra::rast("Data/Spatial_Data/Climate_Trend_Rasters/Ppt_Trend_Slope_1980_2020.tif")
+trprcp.mam <- terra::rast("Data/Spatial_Data/Climate_Trend_Rasters/Spring_Ppt_Trend_Slope_1980_2020.tif")
+trprcp.jja <- terra::rast("Data/Spatial_Data/Climate_Trend_Rasters/Summer_Ppt_Trend_Slope_1980_2020.tif")
+
+trends <- c(trtmax.ann, trtmax.mam, trtmax.jja,
+            trtmin.ann, trtmin.mam, trtmin.jja,
+            trprcp.ann, trprcp.mam, trprcp.jja)
+
+names(trends) <- c("Trend_Tmax_Annual", "Trend_Tmax_MAM", "Trend_Tmax_JJA", 
+                   "Trend_Tmin_Annual", "Trend_Tmin_MAM", "Trend_Tmin_JJA",
+                   "Trend_Prcp_Annual", "Trend_Prcp_MAM", "Trend_Prcp_JJA")
 plot(trends)
 
-## read in the tifs
-tanom.r <- rast(lapply(atmax.path, rast))
-manom.r <- rast(lapply(atmin.path, rast))
-panom.r <- rast(lapply(aprcp.path, rast))
-antanom.r <- rast(lapply(antmax.path, rast))
-anmanom.r <- rast(lapply(antmin.path, rast))
-anpanom.r <- rast(lapply(anprcp.path, rast))
+## Test real quick
+rsamp <- spatSample(trends, size = 5000, na.rm = T)
+cor(rsamp) |> corrplot::corrplot(method = "number")
 
-anom.r <- c(tanom.r, manom.r, panom.r, antanom.r, anmanom.r, anpanom.r)
-
-## Give informative names
-names(anom.r) <- stringr::str_extract(sources(anom.r), pattern = "Tmax_Anomaly_\\d{4}|Tmin_Anomaly_\\d{4}|Precip_Anomaly_\\d{4}|Annual_Tmax_Anomaly_\\d{4}|Annual_Tmin_Anomaly_\\d{4}|Annual_Prcp_Anomaly_\\d{4}")
+## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+##
+## Subsection: ARU Locations
+##
+## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 ## Load in the ARU locations
 locs <- st_read(here("Data/Spatial_Data/ARU_Locs_2021_2025.shp"))
@@ -155,20 +228,25 @@ static_clim_df <- locs |>
   group_by(Cell_Unit) |> 
   summarise(Long = mean(Long),
             Lat = mean(Lat),
-            Trend_Tmax = mean(Trend_Tmax),
+            ## Trends
+            Trend_Tmax_Annual = mean(Trend_Tmax_Annual),
             Trend_Tmax_JJA = mean(Trend_Tmax_JJA),
             Trend_Tmax_MAM = mean(Trend_Tmax_MAM),
-            Trend_Tmin = mean(Trend_Tmin),
+            Trend_Tmin_Annual = mean(Trend_Tmin_Annual),
             Trend_Tmin_JJA = mean(Trend_Tmin_JJA),
             Trend_Tmin_MAM = mean(Trend_Tmin_MAM),
-            Trend_Prcp = mean(Trend_Prcp),
+            Trend_Prcp_Annual = mean(Trend_Prcp_Annual),
             Trend_Prcp_JJA = mean(Trend_Prcp_JJA),
             Trend_Prcp_MAM = mean(Trend_Prcp_MAM),
+            ## Baselines
             Tmax_Base_JJA = mean(Tmax_Baseline_JJA),
+            Tmax_Base_MAM = mean(Tmax_Baseline_MAM),
             Tmax_Base_Annual = mean(Tmax_Baseline_Annual),
             Tmin_Base_JJA = mean(Tmin_Baseline_JJA),
+            Tmin_Base_MAM = mean(Tmin_Baseline_MAM),
             Tmin_Base_Annual = mean(Tmin_Baseline_Annual),
             Prcp_Base_JJA = mean(Prcp_Baseline_JJA),
+            Prcp_Base_MAM = mean(Prcp_Baseline_MAM),
             Prcp_Base_Annual = mean(Prcp_Baseline_Annual)) |> 
   ungroup() |> 
   mutate(across(where(is.numeric), 
@@ -177,9 +255,9 @@ static_clim_df <- locs |>
 
   
 
-hist(static_clim_df$Trend_Tmax)
-hist(static_clim_df$Trend_Tmin)
-hist(static_clim_df$Trend_Prcp)
+hist(static_clim_df$Trend_Tmax_Annual)
+hist(static_clim_df$Trend_Tmin_Annual)
+hist(static_clim_df$Trend_Prcp_Annual)
 hist(static_clim_df$Tmax_Base_JJA)
 hist(static_clim_df$Tmin_Base_JJA)
 hist(static_clim_df$Tmax_Base_Annual)
@@ -195,8 +273,11 @@ dyn_clim_df <- locs |>
   tidyr::pivot_longer(cols = matches("Tmax_Anomaly|Tmin_Anomaly|Prcp_Anomaly|Precip_Anomaly"), names_to = "Var_Year", values_to = "Anomaly") |>
   mutate(Year = as.numeric(stringr::str_extract(Var_Year, "\\d+")),
          ClimVar = stringr::str_extract(Var_Year, "[A-z]+")) |> 
-  mutate(ClimVar = gsub("_Anomaly_", "", ClimVar)) |> 
-  filter(Year >= 2021) |> 
+  mutate(ClimVar = gsub("_Anomaly_", "", ClimVar)) |>
+  mutate(ClimVar = case_when(str_detect(ClimVar, "Spring") ~ gsub("Spring", "MAM", ClimVar),
+                             str_detect(ClimVar, "^Tmax$|^Tmin$|^Prcp$") ~ paste0("JJA_", ClimVar),
+                             TRUE ~ ClimVar)) |> 
+  filter(Year >= 2020) |> 
   st_drop_geometry()
 
 ## Make a list to store the datasets
@@ -238,7 +319,7 @@ static_clim_df <- as.data.frame(static_clim_df)
 clim_dat <- list(static_clim_df, dyn_clim)
 str(clim_dat)
 
-saveRDS(clim_dat, file = here("Data/Climate_DCM_Covs_2021_2024.RDS"))
+saveRDS(clim_dat, file = here("Data/Climate_DCM_Covs_2020_2024.RDS"))
 
 ## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 ##
